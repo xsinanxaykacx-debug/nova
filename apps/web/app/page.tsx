@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, LockKeyhole, Search, ShieldCheck } from "lucide-react";
+import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -24,7 +24,7 @@ export default function HomePage() {
         <div className="mt-12 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-slate-300">
           <span className="inline-flex items-center gap-2"><LockKeyhole size={15} className="text-sky-400" /> AES-256-GCM şifreleme</span>
           <span className="inline-flex items-center gap-2"><ShieldCheck size={15} className="text-sky-400" /> Özel anahtar cihazında</span>
-          <Link href="/search" className="inline-flex items-center gap-2 text-sky-400 transition hover:text-sky-300"><Search size={15} /> Kullanıcı ara</Link>
+          <span className="text-slate-400">Yeni sohbet başlatmak için + simgesini kullan</span>
         </div>
       </section>
     </main>
