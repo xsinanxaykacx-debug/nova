@@ -779,3 +779,180 @@ button.hover\:bg-sky-400:hover { background-color: #00A8FF !important; color: #0
 .peer-profile-encryption p { margin-top:5px; color:#a9bddf; font-size:12px; line-height:1.55; }
 .conversation-profile-card { cursor:pointer; border:1px solid rgba(0,168,255,.28); }
 .conversation-profile-card:focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }
+
+/* NOVA FINAL LOCKED PALETTE — user-approved colors */
+:root {
+  color-scheme: dark;
+  --nova-background: #01051c;
+  --nova-panel: #1c2340;
+  --nova-room: #3b3b40;
+  --nova-card: #5082de;
+  --nova-button: #7dafe8;
+  --nova-button-text: #000000;
+  --nova-outgoing: #9ef0e5;
+  --nova-outgoing-text: #000000;
+  --nova-incoming: #b7f09e;
+  --nova-incoming-text: #000000;
+  --nova-accent: #00A8FF;
+  --nova-readable: #9ef0e5;
+}
+
+/* Flat surfaces on every route */
+html, body, body > div, main, .chat-app-shell, .nova-hero, .chat-empty-state {
+  background: var(--nova-background) !important;
+  background-color: var(--nova-background) !important;
+  color: var(--nova-readable) !important;
+}
+.navigation-rail, .chat-sidebar, .calls-sidebar, .mobile-bottom-nav,
+.chat-room-header, .chat-composer, .profile-panel-header,
+.profile-side-panel, .chat-list-heading, .chat-sidebar-layout {
+  background: var(--nova-panel) !important;
+  background-color: var(--nova-panel) !important;
+  color: var(--nova-readable) !important;
+}
+.chat-room-panel, .chat-wallpaper {
+  background: var(--nova-room) !important;
+  background-color: var(--nova-room) !important;
+}
+.profile-panel-content, .profile-panel-fields, .new-chat-modal,
+.new-chat-modal-header, .peer-profile-modal, .peer-profile-modal-header,
+.nova-card, section.rounded-3xl, .conversation-profile-card {
+  background: var(--nova-card) !important;
+  background-color: var(--nova-card) !important;
+  color: var(--nova-button-text) !important;
+  border-color: var(--nova-accent) !important;
+}
+.profile-panel-layer, .new-chat-overlay, .peer-profile-overlay {
+  background: var(--nova-background) !important;
+}
+
+/* Legible text on dark panels */
+body, .chat-app-shell, .chat-sidebar, .navigation-rail, .calls-sidebar,
+.chat-room-panel, .chat-room-header, .chat-composer, .mobile-bottom-nav,
+.profile-side-panel, .profile-panel-header, .profile-panel-content,
+.chat-list-heading, .chat-list-item, .chat-filter-pill, .inline-people-heading,
+.inline-people-empty, .chat-room-header p, .profile-panel-identity p,
+.profile-detail-row, .new-chat-person small, .peer-profile-info-row,
+.peer-profile-username, .conversation-status, .text-white, .text-slate-100,
+.text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500,
+.text-slate-600, .text-slate-700, .profile-panel-header h2,
+.profile-panel-identity h3, .new-chat-modal-header h2, .new-chat-person strong,
+.chat-list-item strong, .chat-list-copy p, .peer-profile-modal-content,
+.peer-profile-modal-content h3, .peer-profile-modal-header h2,
+.peer-profile-encryption, .peer-profile-encryption strong,
+.peer-profile-encryption p, .nova-hero-title, .nova-hero-tagline {
+  color: var(--nova-readable) !important;
+}
+
+/* Inputs and search fields */
+.search-field, .chat-search-field, .new-chat-search, .chat-message-input,
+.profile-panel-fields input, input, textarea, select {
+  background: var(--nova-panel) !important;
+  background-color: var(--nova-panel) !important;
+  color: var(--nova-readable) !important;
+  border-color: var(--nova-accent) !important;
+}
+.search-field input, .chat-search-field input, .new-chat-search input {
+  background: transparent !important;
+  color: var(--nova-readable) !important;
+}
+input::placeholder, textarea::placeholder, .chat-search-field input::placeholder,
+.search-field input::placeholder, .new-chat-search input::placeholder,
+.chat-message-input::placeholder {
+  color: var(--nova-button) !important;
+  opacity: 1 !important;
+}
+
+/* Incoming and outgoing message colors */
+.message-bubble-outgoing, .message-bubble-outgoing::after {
+  background: var(--nova-outgoing) !important;
+  background-color: var(--nova-outgoing) !important;
+  color: var(--nova-outgoing-text) !important;
+  border-color: var(--nova-outgoing) !important;
+}
+.message-bubble-incoming, .message-bubble-incoming::after {
+  background: var(--nova-incoming) !important;
+  background-color: var(--nova-incoming) !important;
+  color: var(--nova-incoming-text) !important;
+  border-color: var(--nova-incoming) !important;
+}
+.message-bubble-outgoing *, .message-bubble-incoming * { color: #000000 !important; }
+.message-bubble::before, .message-bubble::after { display: none !important; content: none !important; }
+
+/* Buttons */
+button, .nova-primary-button, .nova-secondary-button, .profile-panel-save,
+.send-button, .chat-new-button, .new-chat-search button, .chat-filter-pill-active,
+button.bg-sky-500, .bg-sky-500 {
+  background: var(--nova-button) !important;
+  background-color: var(--nova-button) !important;
+  color: var(--nova-button-text) !important;
+  border-color: var(--nova-button) !important;
+}
+button svg, .send-button svg, .chat-new-button svg { color: var(--nova-button-text) !important; }
+button:hover, .nova-primary-button:hover, .nova-secondary-button:hover,
+.profile-panel-save:hover, .send-button:hover, .chat-new-button:hover,
+.new-chat-search button:hover {
+  background: var(--nova-button) !important;
+  color: var(--nova-button-text) !important;
+}
+
+/* Accent icons, selected navigation, ticks and emphasis */
+svg, .rail-link, .icon-button, .composer-icon-button, .rail-link-active,
+.mobile-nav-active, .text-sky-100, .text-sky-200, .text-sky-300,
+.text-sky-400, .text-sky-500, .security-pill, .new-chat-action,
+.profile-panel-notice, .chat-list-item time {
+  color: var(--nova-accent) !important;
+}
+.rail-link-active, .chat-list-item-active, .chat-filter-pill-active,
+.mobile-nav-active {
+  color: var(--nova-accent) !important;
+  background: var(--nova-panel) !important;
+  border-color: var(--nova-accent) !important;
+}
+.security-pill, .chat-filter-pill {
+  background: var(--nova-panel) !important;
+  color: var(--nova-accent) !important;
+  border-color: var(--nova-accent) !important;
+}
+.unread-badge { background: var(--nova-accent) !important; color: #000000 !important; }
+.conversation-status-dot, .conversation-status-dot.is-live,
+.conversation-status-dot.is-error {
+  background: var(--nova-accent) !important;
+  box-shadow: none !important;
+}
+
+/* Avatars and profile details */
+.avatar-ring, .rail-profile-avatar, .profile-panel-avatar,
+.conversation-profile-avatar, .peer-profile-avatar {
+  background: var(--nova-panel) !important;
+  color: var(--nova-readable) !important;
+  border-color: var(--nova-accent) !important;
+  box-shadow: none !important;
+}
+.profile-detail-row, .profile-panel-details, .profile-panel-fields,
+.profile-panel-logout, .chat-list-item, .chat-list-heading,
+.inline-people-results, .profile-panel-header, .new-chat-modal-header,
+.peer-profile-modal-header { border-color: var(--nova-accent) !important; }
+
+/* Absolutely no gradients, blur, haze, glow or shadows */
+*, *::before, *::after {
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+
+/* Black text on blue cards and dialogs for contrast */
+.new-chat-modal, .new-chat-modal *, .peer-profile-modal, .peer-profile-modal *,
+.conversation-profile-card, .conversation-profile-card * {
+  color: #000000 !important;
+}
+.new-chat-modal svg, .peer-profile-modal svg, .conversation-profile-card svg {
+  color: #00A8FF !important;
+}
+.profile-panel-content {
+  background: #1c2340 !important;
+  color: #9ef0e5 !important;
+}
