@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
+import { NavigationRail } from "@/components/navigation-rail";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type Profile = { username: string; display_name: string; avatar_url: string | null };
@@ -60,7 +61,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen px-5 py-12">
+    <div className="flex min-h-screen w-full">
+      <NavigationRail />
+      <main className="min-h-screen min-w-0 flex-1 px-5 pt-12 pb-24">
       <section className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900/80 p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">NOVA CHAT</p><h1 className="mt-2 text-3xl font-semibold text-white">Profilin</h1><p className="mt-2 text-sm text-slate-400">{user?.email}</p></div>
@@ -78,6 +81,7 @@ export default function ProfilePage() {
           <button disabled={busy} className="rounded-xl bg-sky-500 px-6 py-3 font-semibold text-white hover:bg-sky-400 disabled:opacity-60">{busy ? "Kaydediliyor..." : "Profili Kaydet"}</button>
         </form>
       </section>
-    </main>
+      </main>
+    </div>
   );
 }

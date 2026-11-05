@@ -4,7 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search, MessageCircle, Settings, UserRound, Plus, MoreVertical, CheckCheck } from "lucide-react";
+import { Search, MessageCircle, UserRound, Settings, Plus, MoreVertical, CheckCheck } from "lucide-react";
+import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -92,9 +93,10 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   }, [activeConversationId, markRead]);
 
   const filtered = items.filter((item) => `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR")));
-
   return (
-    <aside className={`chat-sidebar flex h-full min-h-0 w-full flex-col border-r border-slate-800/90 bg-[#0b1422] ${activeConversationId ? "hidden md:flex md:w-[340px] md:shrink-0" : "md:w-[360px] md:shrink-0"}`}>
+    <div className={`chat-sidebar-layout flex h-full w-full min-w-0 ${activeConversationId ? "md:w-[408px] md:shrink-0" : "md:w-[428px] md:shrink-0"}`}>
+      <NavigationRail showMobileNav={!activeConversationId} />
+      <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 w-full flex-col border-r border-slate-800/90 bg-[#0b1422] ${activeConversationId ? "hidden md:flex md:w-[340px] md:shrink-0" : "md:w-[360px] md:shrink-0"}`}>
       <div className="flex items-center justify-between px-5 pb-4 pt-5">
         <div className="flex items-center gap-3">
           <div className="avatar-ring">
@@ -135,11 +137,8 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
           </Link>
         )) : <div className="px-5 py-10 text-center"><MessageCircle size={25} className="mx-auto mb-3 text-slate-600" /><p className="text-sm text-slate-400">{term ? "Eşleşen sohbet yok." : "Henüz sohbetin yok."}</p><Link href="/search" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-sky-400 hover:text-sky-300"><Plus size={14} /> Yeni sohbet başlat</Link></div>}
       </nav>
-      <div className="mobile-bottom-nav grid grid-cols-3 border-t border-slate-800/80 px-3 py-2 md:hidden">
-        <Link href="/chat" className={`mobile-nav-link ${pathname.startsWith("/chat") ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbet</Link>
-        <Link href="/search" className="mobile-nav-link"><Search size={19} />Keşfet</Link>
-        <Link href="/profile" className="mobile-nav-link"><UserRound size={19} />Profil</Link>
-      </div>
-    </aside>
+
+      </aside>
+    </div>
   );
 }

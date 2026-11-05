@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -73,7 +74,9 @@ export default function SearchPage() {
   }
 
   return (
-    <main className="min-h-screen px-5 py-10 sm:px-8">
+    <div className="flex min-h-screen w-full">
+      <NavigationRail />
+      <main className="min-h-screen min-w-0 flex-1 px-5 pt-10 pb-24 sm:px-8">
       <section className="mx-auto w-full max-w-3xl">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="text-sm font-semibold text-sky-300">← NOVA CHAT</Link>
@@ -104,6 +107,7 @@ export default function SearchPage() {
           {searched && !loading && results.length === 0 && !error && <p className="rounded-xl border border-slate-800 p-4 text-sm text-slate-400">Sonuç bulunamadı.</p>}
         </div>
       </section>
-    </main>
+      </main>
+    </div>
   );
 }
