@@ -123,7 +123,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       <NavigationRail showMobileNav={!activeConversationId} />
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
         <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between gap-3 px-6">
-          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Chat</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Sohbet</h1>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => document.getElementById("chat-search-input")?.focus()} aria-label="Sohbetlerde ara" title="Ara" className="icon-button"><Search size={19} /></button>
             <button type="button" disabled aria-label="Ayarlar yakında" title="Ayarlar yakında" className="icon-button opacity-60"><Settings size={19} /></button>

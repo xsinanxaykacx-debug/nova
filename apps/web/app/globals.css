@@ -764,3 +764,18 @@ button.hover\:bg-sky-400:hover { background-color: #00A8FF !important; color: #0
   .composer-icon-button { width: 34px !important; height: 38px !important; }
   .composer-send-leading, .composer-send-trailing { width: 40px !important; height: 42px !important; flex-basis: 40px !important; }
 }
+
+.peer-profile-overlay { position:fixed; z-index:120; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(2,8,28,.72); backdrop-filter:blur(7px); }
+.peer-profile-modal { width:min(420px,100%); overflow:hidden; border:1px solid rgba(0,168,255,.28); border-radius:24px; background:#0a2b6b; box-shadow:0 28px 100px rgba(0,0,0,.48); animation:nova-modal-in .18s ease-out; }
+.peer-profile-modal-header { display:flex; min-height:64px; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(148,163,184,.14); padding:0 18px 0 24px; }
+.peer-profile-modal-header h2 { color:#f8fafc; font-size:16px; font-weight:650; }
+.peer-profile-modal-content { display:flex; flex-direction:column; align-items:center; padding:30px 26px 28px; text-align:center; }
+.peer-profile-avatar { width:88px !important; height:88px !important; margin-bottom:16px; border:3px solid #00A8FF !important; background:#08245f !important; font-size:25px; }
+.peer-profile-modal-content h3 { color:#f8fafc; font-size:20px; font-weight:700; }
+.peer-profile-username { margin-top:4px; color:#b8c9e8; font-size:13px; }
+.peer-profile-info-row { display:flex; align-items:center; gap:8px; margin-top:18px; color:#dbeafe; font-size:13px; }
+.peer-profile-encryption { display:flex; width:100%; align-items:flex-start; gap:12px; margin-top:26px; border:1px solid rgba(0,168,255,.22); border-radius:16px; background:rgba(5,26,79,.62); padding:16px; color:#8bd9ff; text-align:left; }
+.peer-profile-encryption strong { color:#e0f2fe; font-size:13px; }
+.peer-profile-encryption p { margin-top:5px; color:#a9bddf; font-size:12px; line-height:1.55; }
+.conversation-profile-card { cursor:pointer; border:1px solid rgba(0,168,255,.28); }
+.conversation-profile-card:focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }

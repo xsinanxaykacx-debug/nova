@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Mic, Paperclip, Send, Smile, MoreVertical, Phone, Video, Search } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Mic, Paperclip, Send, Smile, MoreVertical, Phone, Video, Search, X } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -47,6 +47,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
   const decryptingIds = useRef(new Set<string>());
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const addMessages = useCallback((next: Message[]) => {
     setMessages((current) => mergeMessages(current, next));
@@ -165,10 +166,10 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
         <header className="chat-room-header flex h-[76px] shrink-0 items-center justify-between border-b border-slate-800/80 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/chat" aria-label="Sohbet listesine dön" className="icon-button md:hidden"><ArrowLeft size={20} /></Link>
-            <div className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2">
+            <button type="button" onClick={() => setProfileOpen(true)} aria-haspopup="dialog" aria-label={"Kullan\u0131c\u0131 profilini a\u00E7"} className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2 text-left transition hover:border-sky-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <div className="avatar-ring avatar-ring-large conversation-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={58} height={58} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
-              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />Conversation status · {connection === "live" ? "Connected" : connection === "error" ? "Connection issue" : "Connecting"}</p></div>
-            </div>
+              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
+            </button>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span className={`mr-2 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "border-sky-500/20 bg-sky-500/10 text-sky-300" : "border-slate-700 text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span>
@@ -218,7 +219,18 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
           <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={19} /></button>
         </form>
 
-      </section>
+              {profileOpen && <div className="peer-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
+          <section className="peer-profile-modal" role="dialog" aria-modal="true" aria-labelledby="peer-profile-title">
+            <header className="peer-profile-modal-header"><h2 id="peer-profile-title">Profil bilgileri</h2><button type="button" onClick={() => setProfileOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={20} /></button></header>
+            <div className="peer-profile-modal-content">
+              <div className="avatar-ring avatar-ring-large peer-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt={peerName} width={88} height={88} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
+              <h3>{peerName}</h3><p className="peer-profile-username">{peerUsername ? "@" + peerUsername : "NOVA kullan\u0131c\u0131s\u0131"}</p>
+              <div className="peer-profile-info-row"><span className={"conversation-status-dot " + (connection === "live" ? "is-live" : connection === "error" ? "is-error" : "")} /><span>{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</span></div>
+              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>U\u00E7tan uca \u015Fifreli</strong><p>Bu sohbetteki mesajlar yaln\u0131zca sen ve bu ki\u015Fi taraf\u0131ndan okunabilir.</p></div></div>
+            </div>
+          </section>
+        </div>}
+</section>
     </main>
   );
 }
