@@ -39,20 +39,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createBrowserSupabaseClient();
     let active = true;
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
-      if (error) {
-        console.error("Unable to restore Supabase session:", error.message);
-      }
-      setSession(data.session);
-      setLoading(false);
-    });
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!active) return;
       setSession(nextSession);
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      if (error) console.error("Unable to restore session:", error.message);
+      setSession(data.session);
       setLoading(false);
     });
 

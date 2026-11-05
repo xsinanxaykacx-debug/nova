@@ -14,11 +14,11 @@ pnpm install
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Set client-safe values in apps/web/.env.local:
-- NEXT_PUBLIC_SUPABASE_URL: Supabase project URL.
-- NEXT_PUBLIC_SUPABASE_ANON_KEY: Supabase anon/publishable client key.
+Set only these client-safe values in `apps/web/.env.local`:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase `sb_publishable_` key)
 
-Never put a Supabase service_role key or privileged secret in a client variable or repository.
+Never use a Supabase secret/service-role key in the web or mobile client. Never commit `.env.local`.
 
 ## Development
 
@@ -28,16 +28,21 @@ pnpm dev
 
 Web: http://localhost:3000. Expo starts the mobile skeleton.
 
-Useful commands: pnpm --filter @nova/web dev, pnpm --filter @nova/web build, pnpm build, pnpm lint, pnpm typecheck.
+## MVP-02 authentication
+- `/signup`: email/password registration, display name and requested username metadata.
+- `/login`: email/password sign-in.
+- `/profile`: authenticated profile editing and sign-out.
+- Middleware refreshes the Supabase cookie session and protects `/profile`.
+- Email confirmation returns through `/auth/callback`.
 
-## Structure
+## Database migration
+Apply `supabase/migrations/20261105000100_profiles_auth_trigger_rls.sql` to the NOVA Supabase project.
+
+It creates `public.profiles` with `id`, `username`, `display_name`, `avatar_url`, timestamps, a case-insensitive unique username index, and a format constraint. An `auth.users` insert trigger creates a profile automatically. RLS allows public profile reads (username discovery) and restricts profile updates to the matching `auth.uid()`. No client insert/delete policy is granted.
+
+## Workspace
 - apps/web: Next.js 14 App Router.
 - apps/mobile: Expo / React Native shell.
-- packages/types: shared ciphertext-first domain types.
-- packages/shared: platform-neutral utilities.
-- packages/ui: shared UI boundary.
-- packages/crypto: client-side cryptography boundary.
-- packages/messaging: messaging domain and transport boundary.
+- packages/types, shared, ui, crypto, messaging: shared workspace packages.
 
-## MVP-01 scope
-Monorepo tooling, responsive web shell, Supabase browser/server helpers using client-safe environment variables, auth listener context, and foundational types. Login/register controls are visual placeholders; authentication flows are not wired. Mobile is a starter shell. No Signal Protocol implementation, message transport, migrations, or production security claims are included.
+Private message payloads remain ciphertext-only by design; this MVP does not implement messaging or Signal Protocol.
