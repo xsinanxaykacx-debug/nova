@@ -41,15 +41,24 @@ Web: http://localhost:3000. Expo starts the mobile skeleton.
 - Repeated direct-chat requests for the same pair reuse the existing conversation.
 - The chat page verifies access by querying the conversation through RLS.
 
+## MVP-04 realtime messaging
+- The server page loads the latest 100 messages through the member-only RLS policy.
+- The client subscribes to `postgres_changes` INSERT events on `public.messages`, filtered by the active `conversation_id`.
+- After `SUBSCRIBED`, the client refreshes history to close the hydration/subscription race window. Events and history are merged by message ID and sorted by timestamp.
+- Sending UTF-8 encodes the draft to Base64 and inserts `conversation_id`, `sender_id`, `ciphertext`, and `sender_device_id`. The current user's UUID is a temporary device-ID placeholder until MVP-05.
+- The client removes the channel on unmount. Successful inserts appear immediately; the Realtime echo is de-duplicated.
+- **Base64 is reversible encoding, not encryption.** Actual Signal/E2EE is not implemented yet.
+
 ## Database migrations
 Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in filename order.
 
 - MVP-02 creates `public.profiles`, an auth-user trigger, username constraints/indexes, and profile RLS. Public profile reads support discovery; updates are restricted to the matching `auth.uid()`. Trigger-only functions are not callable through the Data API.
 - MVP-03 creates `public.conversations`, `public.conversation_members`, and `public.messages`. All three tables have RLS enabled. Conversation metadata, membership rows, and messages are readable only by current conversation members. Message inserts additionally require `sender_id = auth.uid()`.
 - Private message storage is ciphertext-only: `messages` contains `ciphertext` and `sender_device_id`; it has **no plaintext `content` column**.
+- MVP-04 adds `public.messages` to the `supabase_realtime` publication. Realtime delivery remains subject to the table's SELECT RLS policy.
 - Membership writes and conversation creation are not granted directly to clients. The authenticated `create_direct_conversation(target_user_id)` RPC creates both memberships atomically and reuses an existing direct conversation. Its membership-check helper lives in the non-exposed `private` schema.
 
-The MVP-03 schema prepares the persistence boundary for E2EE; it does not yet implement client-side encryption, device registration, or message sending.
+MVP-04 uses temporary Base64 encoding only; device registration and actual encryption are future work.
 
 ## Workspace
 - apps/web: Next.js 14 App Router.

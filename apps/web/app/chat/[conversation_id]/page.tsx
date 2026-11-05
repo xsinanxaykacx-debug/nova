@@ -1,6 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { Message } from "@nova/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { ChatRoom } from "./chat-room";
 
 type ChatPageProps = { params: { conversation_id: string } };
 
@@ -9,6 +10,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // RLS limits this lookup and history to members of this conversation.
   const { data: conversation } = await supabase
     .from("conversations")
     .select("id")
@@ -16,14 +18,20 @@ export default async function ChatPage({ params }: ChatPageProps) {
     .maybeSingle();
   if (!conversation) notFound();
 
+  const { data: history, error } = await supabase
+    .from("messages")
+    .select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at")
+    .eq("conversation_id", params.conversation_id)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(100);
+  if (error) console.error("Unable to load chat history:", error.message);
+
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 py-12">
-      <section className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/80 p-8 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">NOVA CHAT</p>
-        <h1 className="mt-4 text-3xl font-semibold text-white">Sohbet başlatıldı</h1>
-        <p className="mt-3 text-sm text-slate-400">Güvenli mesajlaşma altyapısı hazırlanıyor.</p>
-        <Link href="/search" className="mt-8 inline-flex rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-violet-400/60">Kullanıcı ara</Link>
-      </section>
-    </main>
+    <ChatRoom
+      conversationId={conversation.id}
+      currentUserId={user.id}
+      initialMessages={(history ?? []) as Message[]}
+    />
   );
 }
