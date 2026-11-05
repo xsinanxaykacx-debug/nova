@@ -714,3 +714,53 @@ button.hover\:bg-sky-400:hover { background-color: #00A8FF !important; color: #0
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+/* NOVA reference UI refresh — layout surfaces and rounded conversation components */
+:root {
+  --nova-bg: #051a4f;
+  --nova-list: #0a2b6b;
+  --nova-room: #08245f;
+  --nova-card: #0d347b;
+  --nova-incoming: #e0f2a1;
+  --nova-outgoing: #9ef0e5;
+  --nova-button: #7dafe8;
+  --nova-accent: #00A8FF;
+}
+.chat-sidebar { background: #0a2b6b !important; }
+.chat-room-panel, .chat-wallpaper { background: #08245f !important; }
+.chat-room-header, .chat-composer { background: #0d347b !important; border-color: #475569 !important; }
+.chat-list-item { border-radius: 18px !important; margin: 3px 10px; padding: 12px 14px !important; }
+.chat-list-item-active { background: rgba(0,168,255,.19) !important; border: 1px solid rgba(0,168,255,.42) !important; }
+.message-bubble { border-radius: 22px !important; overflow-wrap: anywhere; }
+.message-bubble::before, .message-bubble::after { display: none !important; content: none !important; }
+.message-bubble-outgoing { background: #9ef0e5 !important; color: #000 !important; border: 0 !important; border-radius: 22px !important; }
+.message-bubble-incoming { background: #e0f2a1 !important; color: #000 !important; border: 0 !important; border-radius: 22px !important; }
+.message-bubble-outgoing *, .message-bubble-incoming * { color: #000 !important; }
+.chat-message-input { border: 1px solid #475569 !important; border-radius: 22px !important; background: #08245f !important; }
+.composer-icon-button { width: 42px !important; height: 42px !important; border-radius: 14px !important; color: #00A8FF !important; }
+.send-button { width: 48px !important; height: 48px !important; border-radius: 16px !important; background: #7dafe8 !important; color: #000 !important; }
+.send-button svg { color: #000 !important; }
+.rail-link-active { background: #00A8FF !important; color: #051a4f !important; border-color: #00A8FF !important; box-shadow: 0 0 16px rgba(0,168,255,.45) !important; }
+.chat-list-heading { background: #0a2b6b !important; }
+.chat-search-field { border-radius: 16px !important; }
+
+/* Reference conversation profile and composer layout */
+.chat-room-header { min-height: 104px !important; height: auto !important; padding-top: 12px !important; padding-bottom: 12px !important; }
+.conversation-profile-card { min-height: 78px; background: #0d347b; border: 1px solid rgba(0,168,255,.28); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.conversation-profile-avatar { width: 58px !important; height: 58px !important; border: 2px solid #00A8FF !important; background: #08245f !important; }
+.conversation-status { color: #cbd5e1; }
+.conversation-status-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #94a3b8; }
+.conversation-status-dot.is-live { background: #22c55e; box-shadow: 0 0 9px rgba(34,197,94,.5); }
+.conversation-status-dot.is-error { background: #fb7185; }
+.chat-composer { align-items: center !important; }
+.composer-send-leading { flex: 0 0 46px; }
+.composer-send-trailing { flex: 0 0 46px; }
+.chat-message-input { min-width: 0; }
+@media (max-width: 640px) {
+  .chat-room-header { min-height: 88px !important; padding-left: 10px !important; padding-right: 10px !important; }
+  .conversation-profile-card { gap: 9px !important; padding: 7px 9px !important; }
+  .conversation-profile-avatar { width: 46px !important; height: 46px !important; }
+  .chat-composer { gap: 6px !important; padding-left: 8px !important; padding-right: 8px !important; }
+  .composer-icon-button { width: 34px !important; height: 38px !important; }
+  .composer-send-leading, .composer-send-trailing { width: 40px !important; height: 42px !important; flex-basis: 40px !important; }
+}

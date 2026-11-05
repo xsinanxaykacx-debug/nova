@@ -165,8 +165,10 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
         <header className="chat-room-header flex h-[76px] shrink-0 items-center justify-between border-b border-slate-800/80 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/chat" aria-label="Sohbet listesine dön" className="icon-button md:hidden"><ArrowLeft size={20} /></Link>
-            <div className="avatar-ring avatar-ring-large">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={46} height={46} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
-            <div className="min-w-0"><h1 className="truncate text-sm font-semibold text-slate-100">{peerName}</h1><p className="mt-0.5 truncate text-xs text-slate-500">{peerUsername ? `@${peerUsername} · ` : ""}{connection === "live" ? "çevrimiçi" : connection === "error" ? "bağlantı sorunu" : "bağlanıyor..."}</p></div>
+            <div className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2">
+              <div className="avatar-ring avatar-ring-large conversation-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={58} height={58} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
+              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />Conversation status · {connection === "live" ? "Connected" : connection === "error" ? "Connection issue" : "Connecting"}</p></div>
+            </div>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span className={`mr-2 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "border-sky-500/20 bg-sky-500/10 text-sky-300" : "border-slate-700 text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span>
@@ -200,18 +202,20 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
         </div>
 
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
-        <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-end gap-2.5 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
-          <button type="button" onClick={insertEmoji} aria-label="Emoji ekle" title="Emoji ekle" className="composer-icon-button mb-1"><Smile size={22} /></button>
-          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme yakında" className="composer-icon-button mb-1 hidden sm:inline-flex"><Paperclip size={21} /></button>
+        <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
+          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı yakında" className="composer-icon-button composer-send-leading">
+            <Mic size={21} />
+          </button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
           <textarea id="chat-message" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
           }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }}
-            rows={1} maxLength={4000} placeholder={cryptoReady ? "Bir mesaj yazın" : "Şifreleme hazırlanıyor..."} disabled={!cryptoReady}
-            className="chat-message-input max-h-[120px] min-h-[46px] flex-1 resize-none rounded-2xl px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
-          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label={draft.trim() ? "Mesaj gönder" : "Sesli mesaj yakında"} title={draft.trim() ? "Gönder" : "Sesli mesaj yakında"} className="send-button mb-0.5">
-            {draft.trim() ? <Send size={19} /> : <Mic size={20} />}
-          </button>
+            rows={1} maxLength={4000} placeholder={cryptoReady ? "Mesajınızı yazın..." : "Şifreleme hazırlanıyor..."} disabled={!cryptoReady}
+            className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
+          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı yakında" className="composer-icon-button hidden sm:inline-flex"><Mic size={21} /></button>
+          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme yakında" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
+          <button type="button" onClick={insertEmoji} aria-label="Emoji ekle" title="Emoji ekle" className="composer-icon-button"><Smile size={22} /></button>
+          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={19} /></button>
         </form>
 
       </section>

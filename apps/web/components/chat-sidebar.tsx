@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MessageCircle, Plus, CheckCheck, X, ArrowLeft, UserRound } from "lucide-react";
+import { Search, MessageCircle, Plus, CheckCheck, X, ArrowLeft, UserRound, Settings } from "lucide-react";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -122,12 +122,16 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     <div className="chat-sidebar-layout flex h-full w-full min-w-0 shrink-0">
       <NavigationRail showMobileNav={!activeConversationId} />
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
-        <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between px-6">
-          <h1 className="text-[22px] font-semibold tracking-tight text-slate-100">Sohbetler</h1>
-          <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><Plus size={22} /></button>
+        <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between gap-3 px-6">
+          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Chat</h1>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => document.getElementById("chat-search-input")?.focus()} aria-label="Sohbetlerde ara" title="Ara" className="icon-button"><Search size={19} /></button>
+            <button type="button" disabled aria-label="Ayarlar yakında" title="Ayarlar yakında" className="icon-button opacity-60"><Settings size={19} /></button>
+            <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><Plus size={22} /></button>
+          </div>
         </div>
         <div className="chat-search-wrap shrink-0 px-5 pb-4">
-          <label className="search-field chat-search-field"><Search size={19} className="shrink-0 text-slate-400" /><input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Kişi veya sohbet ara" aria-label="Kişi veya sohbet ara" /></label>
+          <label className="search-field chat-search-field"><Search size={19} className="shrink-0 text-slate-400" /><input id="chat-search-input" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Kişi veya sohbet ara" aria-label="Kişi veya sohbet ara" /></label>
         </div>
         <div className="chat-filter-row flex shrink-0 items-center gap-2 overflow-x-auto px-5 pb-4" aria-label="Sohbet filtreleri">
           {([["all", "Tümü"], ["unread", "Okunmamış"], ["favorites", "Favoriler"], ["groups", "Gruplar"]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`chat-filter-pill ${filter === key ? "chat-filter-pill-active" : ""}`}>{label}</button>)}
