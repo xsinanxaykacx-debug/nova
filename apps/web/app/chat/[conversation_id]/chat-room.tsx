@@ -168,7 +168,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             <Link href="/chat" aria-label="Sohbet listesine dön" className="icon-button md:hidden"><ArrowLeft size={20} /></Link>
             <button type="button" onClick={() => setProfileOpen(true)} aria-haspopup="dialog" aria-label={"Kullan\u0131c\u0131 profilini a\u00E7"} className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2 text-left transition hover:border-sky-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <div className="avatar-ring avatar-ring-large conversation-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={58} height={58} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
-              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
+              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
             </button>
           </div>
           <div className="flex items-center gap-1 text-slate-400">
@@ -204,9 +204,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
 
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
         <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
-          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı yakında" className="composer-icon-button composer-send-leading">
-            <Mic size={21} />
-          </button>
+          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme yakında" className="composer-icon-button composer-send-leading"><Paperclip size={21} /></button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
           <textarea id="chat-message" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
@@ -214,7 +212,6 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             rows={1} maxLength={4000} placeholder={cryptoReady ? "Mesajınızı yazın..." : "Şifreleme hazırlanıyor..."} disabled={!cryptoReady}
             className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
           <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı yakında" className="composer-icon-button hidden sm:inline-flex"><Mic size={21} /></button>
-          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme yakında" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
           <button type="button" onClick={insertEmoji} aria-label="Emoji ekle" title="Emoji ekle" className="composer-icon-button"><Smile size={22} /></button>
           <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={19} /></button>
         </form>
@@ -224,9 +221,9 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             <header className="peer-profile-modal-header"><h2 id="peer-profile-title">Profil bilgileri</h2><button type="button" onClick={() => setProfileOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={20} /></button></header>
             <div className="peer-profile-modal-content">
               <div className="avatar-ring avatar-ring-large peer-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt={peerName} width={88} height={88} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
-              <h3>{peerName}</h3><p className="peer-profile-username">{peerUsername ? "@" + peerUsername : "NOVA kullan\u0131c\u0131s\u0131"}</p>
+              <h3>{peerName}</h3><p className="peer-profile-username">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p>
               <div className="peer-profile-info-row"><span className={"conversation-status-dot " + (connection === "live" ? "is-live" : connection === "error" ? "is-error" : "")} /><span>{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</span></div>
-              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>U\u00E7tan uca \u015Fifreli</strong><p>Bu sohbetteki mesajlar yaln\u0131zca sen ve bu ki\u015Fi taraf\u0131ndan okunabilir.</p></div></div>
+              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>Uçtan uca şifreli</strong><p>Bu sohbetteki mesajlar yaln\u0131zca sen ve bu ki\u015Fi taraf\u0131ndan okunabilir.</p></div></div>
             </div>
           </section>
         </div>}
@@ -234,3 +231,5 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     </main>
   );
 }
+
+[executed on device: CASPER2026 (6aef6c8a-4d92-4cfd-8a24-7178f9b87d0f)]
