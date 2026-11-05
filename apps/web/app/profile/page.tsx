@@ -63,19 +63,19 @@ export default function ProfilePage() {
     <main className="min-h-screen px-5 py-12">
       <section className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900/80 p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">NOVA CHAT</p><h1 className="mt-2 text-3xl font-semibold text-white">Profilin</h1><p className="mt-2 text-sm text-slate-400">{user?.email}</p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">NOVA CHAT</p><h1 className="mt-2 text-3xl font-semibold text-white">Profilin</h1><p className="mt-2 text-sm text-slate-400">{user?.email}</p></div>
           <button onClick={signOut} className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-rose-400/60 hover:text-rose-300">Çıkış Yap</button>
         </div>
         <form onSubmit={updateProfile} className="mt-10 space-y-5">
           <label className="block text-sm text-slate-300">Kullanıcı adı
-            <input required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" value={profile.username} onChange={(event) => setProfile((current) => ({ ...current, username: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-400" />
+            <input required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" value={profile.username} onChange={(event) => setProfile((current) => ({ ...current, username: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-sky-400" />
           </label>
           <label className="block text-sm text-slate-300">Görünen ad
-            <input required maxLength={60} value={profile.display_name} onChange={(event) => setProfile((current) => ({ ...current, display_name: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-400" />
+            <input required maxLength={60} value={profile.display_name} onChange={(event) => setProfile((current) => ({ ...current, display_name: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-sky-400" />
           </label>
           {error && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p>}
           {message && <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">{message}</p>}
-          <button disabled={busy} className="rounded-xl bg-violet-500 px-6 py-3 font-semibold text-white hover:bg-violet-400 disabled:opacity-60">{busy ? "Kaydediliyor..." : "Profili Kaydet"}</button>
+          <button disabled={busy} className="rounded-xl bg-sky-500 px-6 py-3 font-semibold text-white hover:bg-sky-400 disabled:opacity-60">{busy ? "Kaydediliyor..." : "Profili Kaydet"}</button>
         </form>
       </section>
     </main>

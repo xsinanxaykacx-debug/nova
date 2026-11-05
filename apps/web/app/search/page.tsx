@@ -76,17 +76,17 @@ export default function SearchPage() {
     <main className="min-h-screen px-5 py-10 sm:px-8">
       <section className="mx-auto w-full max-w-3xl">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="text-sm font-semibold text-violet-300">← NOVA CHAT</Link>
+          <Link href="/" className="text-sm font-semibold text-sky-300">← NOVA CHAT</Link>
           <Link href="/profile" className="text-sm text-slate-400 hover:text-white">Profilim</Link>
         </div>
         <div className="mt-12">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Kişiler</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">Kişiler</p>
           <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">Kullanıcı ara</h1>
           <p className="mt-3 text-sm text-slate-400">Kullanıcı adı veya görünen ad ile NOVA kullanıcılarını bul.</p>
         </div>
         <form onSubmit={searchUsers} className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Örn. kullanici_adi" aria-label="Kullanıcı ara" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-violet-400" />
-          <button type="submit" disabled={loading} className="rounded-xl bg-violet-500 px-6 py-3 font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60">{loading ? "Aranıyor..." : "Ara"}</button>
+          <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Örn. kullanici_adi" aria-label="Kullanıcı ara" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-400" />
+          <button type="submit" disabled={loading} className="rounded-xl bg-sky-500 px-6 py-3 font-semibold text-white transition hover:bg-sky-400 disabled:opacity-60">{loading ? "Aranıyor..." : "Ara"}</button>
         </form>
         {error && <p role="status" className="mt-5 rounded-xl border border-slate-700 bg-slate-900/70 p-4 text-sm text-slate-300">{error}</p>}
         <div className="mt-6 space-y-3">
@@ -96,7 +96,7 @@ export default function SearchPage() {
                 <p className="truncate font-semibold text-white">{profile.display_name || profile.username}</p>
                 <p className="mt-1 truncate text-sm text-slate-400">@{profile.username}</p>
               </div>
-              <button type="button" onClick={() => startConversation(profile)} disabled={openingId !== null} className="shrink-0 rounded-xl border border-violet-400/40 bg-violet-500/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-50">
+              <button type="button" onClick={() => startConversation(profile)} disabled={openingId !== null} className="shrink-0 rounded-xl border border-sky-400/40 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/20 disabled:opacity-50">
                 {openingId === profile.id ? "Açılıyor..." : "Mesaj Gönder"}
               </button>
             </article>
