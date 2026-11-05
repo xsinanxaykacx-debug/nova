@@ -428,3 +428,29 @@ body { background: #0f172a !important; color: #cbd5e1; }
   .send-button { width: 44px; height: 44px; }
   .message-bubble { max-width: 88%; }
 }
+
+
+/* WhatsApp-style chat filters and calls view */
+.chat-filter-row { scrollbar-width: none; }
+.chat-filter-row::-webkit-scrollbar { display: none; }
+.chat-filter-pill {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 9999px;
+  background: rgba(51,65,85,.42);
+  padding: 0 14px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.chat-filter-pill:hover { border-color: rgba(56,189,248,.35); background: rgba(56,189,248,.08); color: #f8fafc; }
+.chat-filter-pill-active { border-color: rgba(56,189,248,.4); background: rgba(56,189,248,.16); color: #7dd3fc; }
+.calls-sidebar { width: 380px; flex: 0 0 380px; background: #1e293b; }
+@media (max-width: 767px) {
+  .calls-sidebar { width: calc(100vw - 68px); flex: 1 1 auto; }
+}

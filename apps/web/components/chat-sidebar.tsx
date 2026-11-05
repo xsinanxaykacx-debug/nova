@@ -34,6 +34,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const { user } = useAuth();
   const [items, setItems] = useState<ChatItem[]>([]);
   const [term, setTerm] = useState("");
+  const [filter, setFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
   const [loading, setLoading] = useState(true);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
@@ -80,7 +81,11 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
 
   useEffect(() => { if (activeConversationId) markRead(activeConversationId); }, [activeConversationId, markRead]);
 
-  const filtered = items.filter((item) => `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR")));
+  const filtered = items.filter((item) => {
+    const matchesTerm = `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"));
+    const matchesFilter = filter === "all" || (filter === "unread" && item.unread > 0);
+    return matchesTerm && matchesFilter;
+  });
 
   return (
     <div className="chat-sidebar-layout flex h-full w-full min-w-0 shrink-0">
@@ -95,6 +100,11 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
             <Search size={19} className="shrink-0 text-slate-400" />
             <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ara veya yeni sohbet baÅŸlat" aria-label="Sohbetlerde ara" />
           </label>
+        </div>
+        <div className="chat-filter-row flex shrink-0 items-center gap-2 overflow-x-auto px-5 pb-4" aria-label="Sohbet filtreleri">
+          {([ ["all", "Tümü"], ["unread", "Okunmamış"], ["favorites", "Favoriler"], ["groups", "Gruplar"] ] as const).map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`chat-filter-pill ${filter === key ? "chat-filter-pill-active" : ""}`}>{label}</button>
+          ))}
         </div>
         <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Sohbet listesi">
           {loading ? <div className="px-6 py-8 text-sm text-slate-400">Sohbetler yÃ¼kleniyor...</div> : filtered.length ? filtered.map((item) => (
@@ -111,7 +121,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
                 </div>
               </div>
             </Link>
-          )) : <div className="px-6 py-12 text-center"><MessageCircle size={30} className="mx-auto mb-3 text-slate-500" /><p className="text-sm text-slate-300">{term ? "EÅŸleÅŸen sohbet yok." : "HenÃ¼z sohbetin yok."}</p><Link href="/search" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-sky-400 hover:text-sky-300"><Plus size={16} /> Yeni sohbet baÅŸlat</Link></div>}
+          )) : <div className="px-6 py-12 text-center"><MessageCircle size={30} className="mx-auto mb-3 text-slate-500" /><p className="text-sm text-slate-300">{filter === "favorites" ? "Henüz favori sohbetin yok." : filter === "groups" ? "Grup sohbeti bulunmuyor." : filter === "unread" ? "Okunmamış sohbet yok." : term ? "Eşleşen sohbet yok." : "Henüz sohbetin yok."}</p>{(filter === "all" || term) && <Link href="/search" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-sky-400 hover:text-sky-300"><Plus size={16} /> Yeni sohbet başlat</Link>}</div>}
         </nav>
       </aside>
     </div>
