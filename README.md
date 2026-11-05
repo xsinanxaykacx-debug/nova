@@ -32,17 +32,26 @@ Web: http://localhost:3000. Expo starts the mobile skeleton.
 - `/signup`: email/password registration, display name and requested username metadata.
 - `/login`: email/password sign-in.
 - `/profile`: authenticated profile editing and sign-out.
-- Middleware refreshes the Supabase cookie session and protects `/profile`.
+- Middleware refreshes the Supabase cookie session and protects `/profile`, `/search`, and `/chat/*`.
 - Email confirmation returns through `/auth/callback`.
 
-## Database migration
-Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in filename order. The second migration revokes direct API execution of trigger-only functions.
+## MVP-03 chat foundation
+- `/search`: authenticated search by profile username or display name.
+- `Mesaj Gönder` calls the authenticated `create_direct_conversation` RPC and opens `/chat/[conversation_id]`.
+- Repeated direct-chat requests for the same pair reuse the existing conversation.
+- The chat page verifies access by querying the conversation through RLS.
 
-It creates `public.profiles` with `id`, `username`, `display_name`, `avatar_url`, timestamps, a case-insensitive unique username index, and a format constraint. An `auth.users` insert trigger creates a profile automatically. RLS allows public profile reads (username discovery) and restricts profile updates to the matching `auth.uid()`. No client insert/delete policy is granted.
+## Database migrations
+Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in filename order.
+
+- MVP-02 creates `public.profiles`, an auth-user trigger, username constraints/indexes, and profile RLS. Public profile reads support discovery; updates are restricted to the matching `auth.uid()`. Trigger-only functions are not callable through the Data API.
+- MVP-03 creates `public.conversations`, `public.conversation_members`, and `public.messages`. All three tables have RLS enabled. Conversation metadata, membership rows, and messages are readable only by current conversation members. Message inserts additionally require `sender_id = auth.uid()`.
+- Private message storage is ciphertext-only: `messages` contains `ciphertext` and `sender_device_id`; it has **no plaintext `content` column**.
+- Membership writes and conversation creation are not granted directly to clients. The authenticated `create_direct_conversation(target_user_id)` RPC creates both memberships atomically and reuses an existing direct conversation. Its membership-check helper lives in the non-exposed `private` schema.
+
+The MVP-03 schema prepares the persistence boundary for E2EE; it does not yet implement client-side encryption, device registration, or message sending.
 
 ## Workspace
 - apps/web: Next.js 14 App Router.
 - apps/mobile: Expo / React Native shell.
 - packages/types, shared, ui, crypto, messaging: shared workspace packages.
-
-Private message payloads remain ciphertext-only by design; this MVP does not implement messaging or Signal Protocol.
