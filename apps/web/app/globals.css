@@ -617,3 +617,6 @@ button.hover\:bg-sky-400:hover { background-color: #0EA5E9 !important; }
 .rail-link-active, .avatar-ring, .rail-profile-avatar, .chat-empty-illustration,
 .profile-side-panel, .new-chat-modal, .send-button, .nova-primary-button,
 .nova-secondary-button, .chat-search-field:focus-within { box-shadow: none !important; }
+/* Global hard stop for gradients and blurred surfaces on every route */
+:root { --nova-ink: #0B1120; --nova-panel-soft: #1E293B; --nova-text: #F8FAFC; --nova-muted: #94A3B8; }
+*, *::before, *::after { background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
