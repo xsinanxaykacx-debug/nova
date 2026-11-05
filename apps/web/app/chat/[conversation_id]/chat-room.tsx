@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Mic, Paperclip, Send, Smile, MoreVertical, Phone, Video } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Mic, Paperclip, Send, Smile, MoreVertical, Phone, Video, Search } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -170,8 +170,9 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span className={`mr-2 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "border-sky-500/20 bg-sky-500/10 text-sky-300" : "border-slate-700 text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span>
-            <button type="button" aria-label="Sesli arama yakında" title="Sesli arama yakında" disabled className="icon-button opacity-40"><Phone size={18} /></button>
-            <button type="button" aria-label="Görüntülü arama yakında" title="Görüntülü arama yakında" disabled className="icon-button opacity-40"><Video size={18} /></button>
+            <button type="button" aria-label="Mesajlarda ara" title="Mesajlarda ara" disabled className="icon-button opacity-40"><Search size={19} /></button>
+            <button type="button" aria-label="Görüntülü arama yakında" title="Görüntülü arama yakında" disabled className="icon-button opacity-40"><Video size={19} /></button>
+            <button type="button" aria-label="Sesli arama yakında" title="Sesli arama yakında" disabled className="icon-button opacity-40"><Phone size={19} /></button>
             <button type="button" aria-label="Diğer seçenekler" className="icon-button"><MoreVertical size={19} /></button>
           </div>
         </header>
@@ -212,7 +213,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             {draft.trim() ? <Send size={19} /> : <Mic size={20} />}
           </button>
         </form>
-        <div className="pb-2 text-center text-[10px] text-slate-600 sm:pb-2">NOVA · AES-256-GCM ile uçtan uca şifreli iletişim</div>
+
       </section>
     </main>
   );
