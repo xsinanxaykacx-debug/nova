@@ -6,6 +6,7 @@ export interface Profile {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  public_key: string | null;
   created_at: ISODateString;
   updated_at: ISODateString;
 }
