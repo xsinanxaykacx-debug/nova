@@ -214,7 +214,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
               <div className="avatar-ring avatar-ring-large peer-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt={peerName} width={88} height={88} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
               <h3>{peerName}</h3><p className="peer-profile-username">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p>
               <div className="peer-profile-info-row"><span className={"conversation-status-dot " + (connection === "live" ? "is-live" : connection === "error" ? "is-error" : "")} /><span>{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</span></div>
-              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>Uçtan uca şifreli</strong><p>Bu sohbetteki mesajlar yaln\u0131zca sen ve bu ki\u015Fi taraf\u0131ndan okunabilir.</p></div></div>
+              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>Uçtan uca şifreli</strong><p>Bu sohbetteki mesajlar yalnızca sen ve bu kişi tarafından okunabilir.</p></div></div>
             </div>
           </section>
         </div>}
