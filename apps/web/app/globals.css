@@ -956,3 +956,15 @@ svg, .rail-link, .icon-button, .composer-icon-button, .rail-link-active,
   background: #1c2340 !important;
   color: #9ef0e5 !important;
 }
+
+
+/* NOVA mobile navigation and single-screen conversation layout */
+@media (max-width: 767px) {
+  .chat-sidebar { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+  .mobile-bottom-nav { min-height: 64px; align-items: center; background: var(--nova-panel) !important; border-color: var(--nova-accent) !important; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .mobile-nav-link { min-height: 46px; justify-content: center; border: 0; background: transparent; }
+  .chat-room-panel { width: 100%; min-width: 0; flex: 1 1 100%; }
+}
+@media (min-width: 768px) {
+  .chat-sidebar-layout { display: flex; }
+}

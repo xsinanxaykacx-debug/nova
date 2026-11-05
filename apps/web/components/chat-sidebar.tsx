@@ -119,7 +119,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   });
 
   return (
-    <div className="chat-sidebar-layout flex h-full w-full min-w-0 shrink-0">
+    <div className={`chat-sidebar-layout flex h-full w-full min-w-0 shrink-0 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
       <NavigationRail showMobileNav={!activeConversationId} />
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
         <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between gap-3 px-6">

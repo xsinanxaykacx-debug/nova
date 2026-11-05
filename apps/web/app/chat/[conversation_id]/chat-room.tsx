@@ -165,7 +165,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
       <section className="chat-room-panel flex min-w-0 flex-1 flex-col">
         <header className="chat-room-header flex h-[76px] shrink-0 items-center justify-between border-b border-slate-800/80 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <Link href="/chat" aria-label="Sohbet listesine dön" className="icon-button md:hidden"><ArrowLeft size={20} /></Link>
+            <Link href="/chat" aria-label="Geri, sohbet listesine dön" className="icon-button inline-flex items-center gap-1.5 px-2 md:hidden"><ArrowLeft size={20} /><span className="text-sm font-medium">Geri</span></Link>
             <button type="button" onClick={() => setProfileOpen(true)} aria-haspopup="dialog" aria-label={"Kullan\u0131c\u0131 profilini a\u00E7"} className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2 text-left transition hover:border-sky-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <div className="avatar-ring avatar-ring-large conversation-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={58} height={58} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
               <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
@@ -231,5 +231,3 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     </main>
   );
 }
-
-[executed on device: CASPER2026 (6aef6c8a-4d92-4cfd-8a24-7178f9b87d0f)]

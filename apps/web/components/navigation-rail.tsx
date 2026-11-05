@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, MessageCircle, Phone, X, Pencil, Check, ArrowLeft } from "lucide-react";
+import { LogOut, MessageCircle, Phone, X, Pencil, Check, ArrowLeft, UserRound } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -65,9 +65,10 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
           <Link href="/calls" aria-label="Aramalar" title="Aramalar" data-tooltip="Aramalar" aria-current={callsActive ? "page" : undefined} className={`rail-link ${callsActive ? "rail-link-active" : ""}`}><Phone size={21} /></Link>
         </div>
       </nav>
-      {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-2 border-t border-slate-800/80 px-3 py-2 md:hidden">
+      {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-3 border-t border-slate-800/80 px-3 py-2 md:hidden">
         <Link href="/chat" className={`mobile-nav-link ${chatActive ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbetler</Link>
         <Link href="/calls" className={`mobile-nav-link ${callsActive ? "mobile-nav-active" : ""}`}><Phone size={19} />Aramalar</Link>
+        <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" className={`mobile-nav-link ${profileOpen ? "mobile-nav-active" : ""}`}><UserRound size={19} />Profil</button>
       </div>}
 
       {profileOpen && <div className="profile-panel-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>

@@ -20,6 +20,5 @@ export default function ChatInboxPage() {
       <p className="mt-3 max-w-md text-[14px] leading-7 text-slate-400">Sohbet etmeye başlamak için bir kişi seçin</p>
       <div className="mt-10 flex items-center gap-2 text-xs text-slate-500"><LockKeyhole size={14} /> Uçtan uca şifreli iletişim</div>
     </section>
-    <div className="flex flex-1 flex-col items-center justify-center px-8 text-center md:hidden"><MessageCircle size={42} className="mb-5 text-sky-400" /><p className="text-sm text-slate-300">Sohbet etmek için listeden bir kişi seçin veya + simgesine dokunun.</p></div>
   </main>;
 }
