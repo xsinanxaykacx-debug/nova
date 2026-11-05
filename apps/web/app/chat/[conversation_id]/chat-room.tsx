@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Mic, Paperclip, Send, Smile, MoreVertical, Phone, Video, Search, X } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, Search, UserRound, X } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -154,10 +154,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     } finally { setSending(false); }
   }
 
-  function insertEmoji() {
-    setDraft((current) => current + "🙂");
-    inputRef.current?.focus();
-  }
+
 
   return (
     <main className="chat-app-shell flex h-[100dvh] min-h-[560px] overflow-hidden bg-[#07111f] text-slate-100">
@@ -171,13 +168,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
               <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
             </button>
           </div>
-          <div className="flex items-center gap-1 text-slate-400">
-            <span className={`mr-2 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "border-sky-500/20 bg-sky-500/10 text-sky-300" : "border-slate-700 text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span>
-            <button type="button" aria-label="Mesajlarda ara" title="Mesajlarda ara" disabled className="icon-button opacity-40"><Search size={19} /></button>
-            <button type="button" aria-label="Görüntülü arama yakında" title="Görüntülü arama yakında" disabled className="icon-button opacity-40"><Video size={19} /></button>
-            <button type="button" aria-label="Sesli arama yakında" title="Sesli arama yakında" disabled className="icon-button opacity-40"><Phone size={19} /></button>
-            <button type="button" aria-label="Diğer seçenekler" className="icon-button"><MoreVertical size={19} /></button>
-          </div>
+          <div className="chat-header-actions flex items-center gap-2"><span className={`mr-1 hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "text-slate-300" : "text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span><button type="button" disabled title="Arama yakında" className="nova-header-action"><Phone size={16} />Call</button><button type="button" onClick={() => setProfileOpen(true)} className="nova-header-action"><UserRound size={16} />Profile</button></div>
         </header>
 
         <div className="chat-wallpaper min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-8 sm:py-7" aria-live="polite" aria-label="Şifreli mesaj geçmişi">
@@ -204,16 +195,16 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
 
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
         <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
-          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme yakında" className="composer-icon-button composer-send-leading"><Paperclip size={21} /></button>
+          <button type="button" disabled aria-label="Kamera yakında" title="Kamera yakında" className="composer-icon-button composer-send-leading"><Camera size={21} /></button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
           <textarea id="chat-message" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
           }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }}
-            rows={1} maxLength={4000} placeholder={cryptoReady ? "Mesajınızı yazın..." : "Şifreleme hazırlanıyor..."} disabled={!cryptoReady}
+            rows={1} maxLength={4000} placeholder={cryptoReady ? "Type your message..." : "Şifreleme hazırlanıyor..."} disabled={!cryptoReady}
             className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
-          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı yakında" className="composer-icon-button hidden sm:inline-flex"><Mic size={21} /></button>
-          <button type="button" onClick={insertEmoji} aria-label="Emoji ekle" title="Emoji ekle" className="composer-icon-button"><Smile size={22} /></button>
-          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={19} /></button>
+          <button type="button" disabled aria-label="Ara yakında" title="Ara" className="composer-icon-button hidden sm:inline-flex"><Search size={21} /></button>
+          <button type="button" disabled aria-label="Telefon yakında" title="Telefon" className="composer-icon-button"><Phone size={21} /></button>
+          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /><span>Send</span></button>
         </form>
 
               {profileOpen && <div className="peer-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>

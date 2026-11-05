@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MessageCircle, Plus, CheckCheck, X, ArrowLeft, UserRound, Settings } from "lucide-react";
+import { Search, MessageCircle, Plus, CheckCheck, X, ArrowLeft, UserRound, Settings, Video, Pencil } from "lucide-react";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -123,11 +123,11 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       <NavigationRail showMobileNav={!activeConversationId} />
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
         <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between gap-3 px-6">
-          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Sohbet</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Chat</h1>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => document.getElementById("chat-search-input")?.focus()} aria-label="Sohbetlerde ara" title="Ara" className="icon-button"><Search size={19} /></button>
-            <button type="button" disabled aria-label="Ayarlar yakında" title="Ayarlar yakında" className="icon-button opacity-60"><Settings size={19} /></button>
-            <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><Plus size={22} /></button>
+            <button type="button" disabled aria-label="Görüntülü arama yakında" title="Görüntülü arama yakında" className="icon-button opacity-60"><Video size={19} /></button>
+            <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><Pencil size={20} /></button>
           </div>
         </div>
         <div className="chat-search-wrap shrink-0 px-5 pb-4">

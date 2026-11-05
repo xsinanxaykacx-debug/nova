@@ -59,7 +59,7 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
   return (
     <>
       <nav className="navigation-rail hidden h-full w-[68px] shrink-0 flex-col items-center border-r border-slate-800/90 py-4 md:flex" aria-label="Ana navigasyon">
-        <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil panelini aç" title="Profil" className="rail-profile-avatar mb-7">{avatar}</button>
+        <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil panelini aç" title="Profil" className="rail-profile-avatar mb-7">{avatar}<span className="rail-profile-name">{displayName}</span></button>
         <div className="flex flex-col items-center gap-3">
           <Link href="/chat" aria-label="Sohbetler" title="Sohbetler" data-tooltip="Sohbetler" aria-current={chatActive ? "page" : undefined} className={`rail-link ${chatActive ? "rail-link-active" : ""}`}><MessageCircle size={21} /></Link>
           <Link href="/calls" aria-label="Aramalar" title="Aramalar" data-tooltip="Aramalar" aria-current={callsActive ? "page" : undefined} className={`rail-link ${callsActive ? "rail-link-active" : ""}`}><Phone size={21} /></Link>
