@@ -36,7 +36,7 @@ Web: http://localhost:3000. Expo starts the mobile skeleton.
 - Email confirmation returns through `/auth/callback`.
 
 ## Database migration
-Apply `supabase/migrations/20261105000100_profiles_auth_trigger_rls.sql` to the NOVA Supabase project.
+Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in filename order. The second migration revokes direct API execution of trigger-only functions.
 
 It creates `public.profiles` with `id`, `username`, `display_name`, `avatar_url`, timestamps, a case-insensitive unique username index, and a format constraint. An `auth.users` insert trigger creates a profile automatically. RLS allows public profile reads (username discovery) and restricts profile updates to the matching `auth.uid()`. No client insert/delete policy is granted.
 
