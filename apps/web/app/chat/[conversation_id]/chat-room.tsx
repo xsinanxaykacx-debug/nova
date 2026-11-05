@@ -55,46 +55,71 @@ export function ChatRoom({ conversationId, currentUserId, initialMessages }: Cha
 
   useEffect(() => {
     let active = true;
-    const channel = supabase
-      .channel(`conversation:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          if (active) addMessages([payload.new as Message]);
-        },
-      )
-      .subscribe(async (status) => {
-        if (!active) return;
-        if (status === "SUBSCRIBED") {
-          setConnection("live");
-          // Reconcile history after joining the channel to close the hydration race.
-          const { data, error: historyError } = await supabase
-            .from("messages")
-            .select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at")
-            .eq("conversation_id", conversationId)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .limit(100);
-          if (!active) return;
-          if (historyError) {
-            setError("Mesaj geçmişi yenilenemedi. Canlı bağlantı devam ediyor.");
-          } else {
-            addMessages((data ?? []) as Message[]);
-          }
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setConnection("error");
-        }
-      });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
+    async function connectToRealtime() {
+      setConnection("connecting");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (!active) return;
+      if (sessionError || !session?.access_token) {
+        console.error("Realtime auth session unavailable:", sessionError?.message);
+        setConnection("error");
+        setError("Canlı bağlantı için oturum doğrulanamadı. Sayfayı yenileyip tekrar dene.");
+        return;
+      }
+
+      // Make sure the Realtime websocket uses the same authenticated JWT as PostgREST.
+      await supabase.realtime.setAuth(session.access_token);
+      if (!active) return;
+
+      channel = supabase
+        .channel(`conversation:${conversationId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+          },
+          (payload) => {
+            if (!active) return;
+            const incoming = payload.new as Message;
+            // Filter locally: avoids a server-side UUID filter mismatch while keeping
+            // the RLS-protected Realtime stream scoped to rows this user can read.
+            if (incoming.conversation_id === conversationId) addMessages([incoming]);
+          },
+        )
+        .subscribe(async (status, subscriptionError) => {
+          if (!active) return;
+          if (status === "SUBSCRIBED") {
+            setConnection("live");
+            setError("");
+            // Reconcile history after joining the channel to close the hydration race.
+            const { data, error: historyError } = await supabase
+              .from("messages")
+              .select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at")
+              .eq("conversation_id", conversationId)
+              .order("created_at", { ascending: true })
+              .order("id", { ascending: true })
+              .limit(100);
+            if (!active) return;
+            if (historyError) {
+              setError("Mesaj geçmişi yenilenemedi. Canlı bağlantı devam ediyor.");
+            } else {
+              addMessages((data ?? []) as Message[]);
+            }
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            console.error("Realtime subscription status:", status, subscriptionError);
+            setConnection("error");
+            setError("Canlı bağlantı kesildi. Bağlantını kontrol edip sayfayı yenile.");
+          }
+        });
+    }
+
+    void connectToRealtime();
     return () => {
       active = false;
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [addMessages, conversationId, supabase]);
 
