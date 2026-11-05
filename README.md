@@ -49,7 +49,7 @@ Web: http://localhost:3000. Expo starts the mobile skeleton.
 - Existing MVP-04 Base64 messages are not treated as encrypted; they display as unsupported legacy ciphertext.
 - Keys are browser-local. Clearing site data, switching browsers/devices, or losing IndexedDB makes prior messages unreadable; secure device transfer and recovery are future work.
 - Public keys are currently distributed through Supabase profiles. Fingerprint/safety-number verification is not implemented yet, so this protects message content from database-only disclosure but does not yet protect against a malicious server substituting public keys or a compromised browser/XSS.
-- Migration `20261105210000_add_profile_public_keys.sql` adds `profiles.public_key` and has been applied to the NOVA Supabase project.
+- Migration `20261105202525_add_profile_public_keys.sql` adds `profiles.public_key` and has been applied to the NOVA Supabase project.
 
 ## MVP-04 realtime messaging
 - The server page loads the latest 100 messages through the member-only RLS policy.
