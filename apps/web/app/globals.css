@@ -542,3 +542,78 @@ body { background: #0f172a !important; color: #cbd5e1; }
 .inline-people-results { border-bottom: 1px solid rgba(148,163,184,.12); padding: 8px 10px 12px; }
 .inline-people-heading { padding: 8px 10px; color: #94a3b8; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
 .inline-people-empty { padding: 12px 10px; color: #94a3b8; font-size: 12px; }
+
+/* NOVA unified midnight-blue palette — authoritative application-wide layer */
+:root {
+  color-scheme: dark;
+  --nova-body: #0B1120;
+  --nova-panel: #111827;
+  --nova-room: #0F172A;
+  --nova-card: #1E293B;
+  --nova-heading: #F8FAFC;
+  --nova-muted: #94A3B8;
+  --nova-blue: #38BDF8;
+  --nova-hover: #0EA5E9;
+  --nova-border: #334155;
+}
+html, body, body > div { min-height: 100%; background: #0B1120 !important; color: #F8FAFC; }
+body { margin: 0; background: #0B1120 !important; color: #F8FAFC !important; }
+.chat-app-shell, .nova-hero, .chat-empty-state { background: #0B1120 !important; background-image: none !important; color: #F8FAFC; }
+.navigation-rail, .chat-sidebar, .calls-sidebar, .mobile-bottom-nav { background: #111827 !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.chat-room-panel, .chat-wallpaper { background: #0F172A !important; background-image: none !important; }
+.chat-room-header, .chat-composer { background: #111827 !important; background-image: none !important; border-color: #334155 !important; }
+.profile-side-panel, .profile-panel-header, .new-chat-modal, .new-chat-modal-header,
+section.rounded-3xl, .nova-card { background: #1E293B !important; background-image: none !important; border-color: #334155 !important; }
+.profile-panel-layer, .new-chat-overlay { background: rgba(11,17,32,.88) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.chat-list-heading, .chat-list-item, .inline-people-results, .profile-panel-header,
+.profile-panel-details, .profile-detail-row, .profile-panel-fields, .profile-panel-logout,
+.new-chat-modal-header { border-color: #334155 !important; }
+.chat-search-field, .search-field, .new-chat-search, .chat-message-input,
+.profile-panel-fields input, input, textarea, select { background-color: #1E293B !important; color: #F8FAFC !important; border-color: #334155 !important; }
+.chat-search-field input, .search-field input, .new-chat-search input { background: transparent !important; color: #F8FAFC !important; }
+input::placeholder, textarea::placeholder, .chat-search-field input::placeholder,
+.search-field input::placeholder, .new-chat-search input::placeholder,
+.chat-message-input::placeholder { color: #94A3B8 !important; opacity: 1 !important; }
+.text-white, .text-slate-100, .text-slate-200, .profile-panel-header h2,
+.profile-panel-identity h3, .new-chat-modal-header h2, .new-chat-person strong,
+.chat-list-item .text-slate-100, .nova-hero-title { color: #F8FAFC !important; }
+.text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700,
+.profile-panel-identity p, .profile-detail-row span, .profile-detail-row strong,
+.chat-room-header p, .message-bubble-incoming, .new-chat-person small,
+.inline-people-heading, .inline-people-empty { color: #94A3B8 !important; }
+.profile-detail-row strong { color: #F8FAFC !important; }
+.text-sky-100, .text-sky-200, .text-sky-300, .text-sky-400, .text-sky-500,
+.rail-link-active, .mobile-nav-active, .nova-hero-connector, .security-pill,
+.new-chat-search button, .new-chat-action, .profile-panel-notice { color: #38BDF8 !important; }
+.rail-link { color: #94A3B8 !important; }
+.rail-link:hover, .rail-link-active:hover, .icon-button:hover, .composer-icon-button:hover,
+.chat-new-button:hover, .profile-panel-back:hover, .profile-panel-edit:hover,
+.new-chat-close:hover { color: #0EA5E9 !important; background: rgba(14,165,233,.12) !important; }
+.rail-link-active, .chat-list-item-active, .chat-filter-pill-active { color: #38BDF8 !important; background: rgba(56,189,248,.12) !important; border-color: #334155 !important; box-shadow: none !important; }
+.chat-list-item:hover, .new-chat-person:hover, .chat-filter-pill:hover { background: rgba(14,165,233,.10) !important; }
+.chat-filter-pill { color: #94A3B8 !important; background: #1E293B !important; border-color: #334155 !important; }
+.message-bubble-outgoing, .message-bubble-outgoing::after { background: #0EA5E9 !important; background-image: none !important; color: #FFFFFF !important; border-color: #0EA5E9 !important; }
+.message-bubble-incoming, .message-bubble-incoming::after { background: #1E293B !important; background-image: none !important; color: #94A3B8 !important; border-color: #334155 !important; }
+.message-bubble-outgoing .text-sky-100\/75, .message-bubble-outgoing .text-sky-200 { color: #FFFFFF !important; }
+.send-button, .nova-primary-button, .profile-panel-save { background: #38BDF8 !important; color: #FFFFFF !important; border-color: #38BDF8 !important; }
+.send-button:hover, .nova-primary-button:hover, .profile-panel-save:hover { background: #0EA5E9 !important; border-color: #0EA5E9 !important; color: #FFFFFF !important; }
+button.bg-sky-500, .bg-sky-500 { background-color: #38BDF8 !important; color: #FFFFFF !important; }
+button.hover\:bg-sky-400:hover { background-color: #0EA5E9 !important; }
+.nova-secondary-button { background: #1E293B !important; color: #FFFFFF !important; border-color: #334155 !important; }
+.avatar-ring, .rail-profile-avatar, .profile-panel-avatar { background: #1E293B !important; color: #38BDF8 !important; border-color: #334155 !important; }
+.security-pill { background: #1E293B !important; border-color: #334155 !important; }
+.unread-badge { background: #38BDF8 !important; color: #FFFFFF !important; }
+.bg-emerald-500\/10, .bg-emerald-500\/\[0\.1\] { background: rgba(56,189,248,.12) !important; }
+.border-emerald-500\/30 { border-color: #334155 !important; }
+.text-emerald-300 { color: #38BDF8 !important; }
+/* Flat surfaces only: remove gradients, decorative wallpaper, blur and glow */
+*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.chat-wallpaper, .chat-app-shell, .chat-sidebar, .navigation-rail, .chat-room-panel,
+.chat-room-header, .chat-composer, .mobile-bottom-nav, .avatar-ring,
+.rail-profile-avatar, .nova-hero, .message-bubble, .profile-side-panel,
+.new-chat-modal, .nova-primary-button, .nova-secondary-button, .send-button {
+  background-image: none !important;
+}
+.rail-link-active, .avatar-ring, .rail-profile-avatar, .chat-empty-illustration,
+.profile-side-panel, .new-chat-modal, .send-button, .nova-primary-button,
+.nova-secondary-button, .chat-search-field:focus-within { box-shadow: none !important; }
