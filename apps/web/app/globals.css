@@ -1690,3 +1690,21 @@ input:focus-visible, textarea:focus-visible {
   outline: 2px solid #78A99F !important;
   outline-offset: 2px !important;
 }
+
+/* Mesaj yazma alanı: kamera/arama ikonları açık zeminde net görünür */
+.chat-composer .composer-icon-button,
+.chat-composer .composer-icon-button:disabled {
+  color: #526071 !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  filter: none !important;
+}
+.chat-composer .composer-icon-button svg {
+  color: inherit !important;
+  stroke: currentColor !important;
+  opacity: 1 !important;
+}
+.chat-composer .composer-icon-button:hover:not(:disabled) {
+  color: #3F796F !important;
+  background: #DCE8E5 !important;
+}
