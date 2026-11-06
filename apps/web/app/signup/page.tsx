@@ -24,26 +24,31 @@ export default function SignupPage() {
       return;
     }
     setBusy(true);
-    const origin = window.location.origin;
-    const { data, error: signupError } = await createBrowserSupabaseClient().auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback?next=/profile`,
-        data: { username: username.toLowerCase(), display_name: displayName.trim() },
-      },
-    });
-    setBusy(false);
-    if (signupError) {
-      setError(signupError.message);
-      return;
+    try {
+      const origin = window.location.origin;
+      const { data, error: signupError } = await createBrowserSupabaseClient().auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${origin}/auth/callback?next=/profile`,
+          data: { username: username.toLowerCase(), display_name: displayName.trim() },
+        },
+      });
+      if (signupError) {
+        setError(signupError.message);
+        return;
+      }
+      if (data.session) {
+        router.replace("/profile");
+        router.refresh();
+        return;
+      }
+      setNotice("Kayıt oluşturuldu. E-posta adresine gönderilen doğrulama bağlantısına tıkla, ardından giriş yap.");
+    } catch (signupError) {
+      setError(signupError instanceof Error ? signupError.message : "Kayıt sırasında bir hata oluştu.");
+    } finally {
+      setBusy(false);
     }
-    if (data.session) {
-      router.replace("/profile");
-      router.refresh();
-      return;
-    }
-    setNotice("Kayıt oluşturuldu. E-posta adresine gönderilen doğrulama bağlantısına tıkla, ardından giriş yap.");
   }
 
   return (
