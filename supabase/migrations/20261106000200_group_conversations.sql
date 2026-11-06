@@ -71,7 +71,7 @@ begin
   if p_conversation_id is null
     or length(btrim(coalesce(p_name, ''))) not between 1 and 80
     or p_member_ids is null
-    or cardinality(p_member_ids) < 3
+    or cardinality(p_member_ids) < 2
     or cardinality(p_member_ids) > 100
     or not (actor_id = any(p_member_ids))
     or p_encrypted_keys is null
