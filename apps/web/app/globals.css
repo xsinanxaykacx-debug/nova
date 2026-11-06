@@ -1975,3 +1975,11 @@ input:focus-visible, textarea:focus-visible {
   border-color: #87929D !important;
   background: #414950 !important;
 }
+
+
+/* Sohbet mesaj alanı: tam siyah zemin */
+.chat-room-panel,
+.chat-wallpaper {
+  background: #020304 !important;
+  background-color: #020304 !important;
+}
