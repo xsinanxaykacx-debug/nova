@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, Search, UserRound, X } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -202,8 +202,8 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
           }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }}
             rows={1} maxLength={4000} placeholder="" disabled={!cryptoReady}
             className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
-          <button type="button" disabled aria-label="Ara yakında" title="Ara" className="composer-icon-button hidden sm:inline-flex"><Search size={21} /></button>
-          <button type="button" disabled aria-label="Telefon yakında" title="Telefon" className="composer-icon-button"><Phone size={21} /></button>
+          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
+          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı" className="composer-icon-button"><Mic size={21} /></button>
           <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /></button>
         </form>
 
