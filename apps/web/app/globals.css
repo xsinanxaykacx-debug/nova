@@ -546,10 +546,10 @@ body { background: #0f172a !important; color: #cbd5e1; }
 /* NOVA unified midnight-blue palette — authoritative application-wide layer */
 :root {
   color-scheme: dark;
-  --nova-body: #0B1120;
-  --nova-panel: #111827;
+  --nova-body: #1D1F1F;
+  --nova-panel: #2E2F2F;
   --nova-room: #0F172A;
-  --nova-card: #1E293B;
+  --nova-card: #161717;
   --nova-heading: #F8FAFC;
   --nova-muted: #94A3B8;
   --nova-blue: #38BDF8;
@@ -1880,17 +1880,17 @@ input:focus-visible, textarea:focus-visible {
   opacity: 1 !important;
 }
 .chat-room-header .nova-header-action svg {
-  color: #354253 !important;
+  color: #353535 !important;
   stroke: currentColor !important;
   opacity: 1 !important;
 }
 .chat-room-header .nova-header-action:hover:not(:disabled) {
   background: transparent !important;
-  color: #17243A !important;
+  color: #171717 !important;
   border-color: transparent !important;
 }
 .chat-room-header .nova-header-action:hover:not(:disabled) svg {
-  color: #17243A !important;
+  color: #242424 !important;
 }
 
 
@@ -1919,7 +1919,7 @@ input:focus-visible, textarea:focus-visible {
 .profile-panel-content > .profile-panel-logout:hover {
   background: transparent !important;
   background-color: transparent !important;
-  color: #202B3A !important;
+  color: #202020 !important;
   text-decoration: underline !important;
   text-underline-offset: 3px !important;
 }
@@ -1930,7 +1930,7 @@ input:focus-visible, textarea:focus-visible {
 .chat-composer .composer-send-trailing:disabled {
   background: #202B3A !important;
   background-color: #202B3A !important;
-  border-color: #202B3A !important;
+  border-color: #7da5b5 !important;
   color: #FFFFFF !important;
 }
 .chat-composer .composer-send-trailing svg {
@@ -1956,23 +1956,23 @@ input:focus-visible, textarea:focus-visible {
 .chat-list-item:hover,
 .chat-list-item-active,
 .call-history-row-selected {
-  background: #414950 !important;
+  background: #2a2b2c !important;
 }
 .chat-sidebar .chat-search-field {
-  background: #292F35 !important;
-  border-color: #59636D !important;
+  background: #f0f0f0 !important;
+  border-color: #595959 !important;
 }
 .chat-sidebar .chat-filter-pill {
   color: #D0D7DF !important;
   border-color: #68737E !important;
 }
 .chat-sidebar .chat-filter-pill-active {
-  background: #4C8C82 !important;
-  border-color: #4C8C82 !important;
+  background: #b4b6b8 !important;
+  border-color: #b4b6b8 !important;
   color: #FFFFFF !important;
 }
 .chat-sidebar .chat-list-item-active {
-  border-color: #87929D !important;
+  border-color: #545454 !important;
   background: #414950 !important;
 }
 
@@ -1980,6 +1980,121 @@ input:focus-visible, textarea:focus-visible {
 /* Sohbet mesaj alanı: tam siyah zemin */
 .chat-room-panel,
 .chat-wallpaper {
-  background: #020304 !important;
-  background-color: #020304 !important;
+  background: #1b1c1d !important;
+  background-color: #707070 !important;
+}
+/* ====================================================
+   NOVA SON RENK PALETİ (KESİN VE SON)
+   Bu katman, üstteki tüm renk tanımlarını ezer.
+   ==================================================== */
+
+:root {
+  --nova-bg: #1D1F1F !important;
+  --nova-panel: #161717 !important;
+  --nova-text: #FFFFFF !important;
+  --nova-text-muted: #B0B0B0 !important;
+  --nova-btn-bg: #c7c7c7 !important;
+  --nova-btn-text: #000000 !important;
+  --nova-msg-out: #e7e6e5 !important;
+  --nova-msg-out-text: #000000 !important;
+  --nova-msg-in: #b7b7b7 !important;
+  --nova-msg-in-text: #000000 !important;
+}
+
+/* Zeminler */
+html, body, body > div, .chat-app-shell, main, .chat-room-panel, .chat-wallpaper {
+  background-color: var(--nova-bg) !important;
+  color: var(--nova-text) !important;
+}
+
+/* Paneller */
+.navigation-rail, .chat-sidebar, .calls-sidebar, .mobile-bottom-nav,
+.chat-room-header, .chat-composer, .profile-side-panel, .new-chat-modal {
+  background-color: var(--nova-panel) !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Yazılar */
+h1, h2, h3, h4, p, span, strong, time, label, div {
+  color: var(--nova-text) !important;
+}
+.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700 {
+  color: var(--nova-text-muted) !important;
+}
+
+/* Mesaj Balonları */
+.message-bubble-outgoing, .message-bubble-outgoing *, 
+.message-bubble-outgoing::after {
+  background-color: var(--nova-msg-out) !important;
+  color: var(--nova-msg-out-text) !important;
+  border-color: var(--nova-msg-out) !important;
+}
+.message-bubble-incoming, .message-bubble-incoming *,
+.message-bubble-incoming::after {
+  background-color: var(--nova-msg-in) !important;
+  color: var(--nova-msg-in-text) !important;
+  border-color: var(--nova-msg-in) !important;
+}
+
+/* Butonlar */
+button, .send-button, .nova-primary-button, .profile-panel-save, 
+.chat-new-button, .btn-primary {
+  background-color: var(--nova-btn-bg) !important;
+  color: var(--nova-btn-text) !important;
+  border-color: var(--nova-btn-bg) !important;
+}
+button svg, .send-button svg, .nova-primary-button svg {
+  color: var(--nova-btn-text) !important;
+  stroke: var(--nova-btn-text) !important;
+}
+
+/* İkonlar */
+svg:not(button svg):not(.send-button svg) {
+  color: var(--nova-text-muted) !important;
+  stroke: var(--nova-text-muted) !important;
+}
+.rail-link svg, .icon-button svg, .composer-icon-button svg {
+  color: var(--nova-text) !important;
+}
+
+/* Input Alanları */
+input, textarea, .chat-message-input, .chat-search-field, .search-field {
+  background-color: var(--nova-panel) !important;
+  color: var(--nova-text) !important;
+  border-color: #2a2a2a !important;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--nova-text-muted) !important;
+}
+
+/* Modallar ve Overlay */
+.profile-panel-layer, .new-chat-overlay, .peer-profile-overlay, .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Seçili Öğeler */
+.chat-list-item-active, .rail-link-active, .chat-filter-pill-active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--nova-btn-bg) !important;
+}
+
+/* Kenarlıklar */
+.chat-list-item, .profile-detail-row, .new-chat-modal-header,
+.profile-panel-header, .chat-room-header, .chat-composer {
+  border-color: #2a2a2a !important;
+}
+
+/* Avatarlar */
+.avatar-ring, .rail-profile-avatar, .profile-panel-avatar,
+.conversation-profile-avatar, .peer-profile-avatar {
+  background-color: var(--nova-panel) !important;
+  color: var(--nova-text) !important;
+  border-color: var(--nova-btn-bg) !important;
+}
+
+/* Gölge ve Gradientleri Sıfırla */
+*, *::before, *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  background-image: none !important;
 }
