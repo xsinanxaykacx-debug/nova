@@ -109,14 +109,14 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
         <div className="flex flex-col items-center gap-4">
           <Link href="/chat" aria-label="Sohbet" title="Sohbet" data-tooltip="Sohbet" aria-current={chatActive ? "page" : undefined} className={`rail-link ${chatActive ? "rail-link-active" : ""}`}><MessageCircle size={21} /></Link>
           <Link href="/calls" aria-label="Aramalar" title="Aramalar" data-tooltip="Aramalar" aria-current={callsActive ? "page" : undefined} className={`rail-link ${callsActive ? "rail-link-active" : ""}`}><Phone size={21} /></Link>
-          <Link href="/chat?filter=unread" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} title="Bildirimler" data-tooltip="Bildirimler" className="rail-link notification-rail-link"><Bell size={21} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</Link>
+          <Link href="/chat" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} title="Bildirimler" data-tooltip="Bildirimler" className="rail-link notification-rail-link"><Bell size={21} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</Link>
         </div>
         <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" title="Profil" data-tooltip="Profil" className="rail-link mt-auto"><UserRound size={21} /></button>
       </nav>
       {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-4 border-t border-slate-800/80 px-3 py-2 md:hidden">
         <Link href="/chat" className={`mobile-nav-link ${chatActive ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbet</Link>
         <Link href="/calls" className={`mobile-nav-link ${callsActive ? "mobile-nav-active" : ""}`}><Phone size={19} />Aramalar</Link>
-        <Link href="/chat?filter=unread" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} className="mobile-nav-link notification-mobile-link"><span className="notification-icon-wrap"><Bell size={19} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</span>Bildirimler</Link>
+        <Link href="/chat" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} className="mobile-nav-link notification-mobile-link"><span className="notification-icon-wrap"><Bell size={19} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</span>Bildirimler</Link>
         <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" className={`mobile-nav-link ${profileOpen ? "mobile-nav-active" : ""}`}><UserRound size={19} />Profil</button>
       </div>}
 
