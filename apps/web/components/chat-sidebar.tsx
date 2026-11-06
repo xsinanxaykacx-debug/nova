@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, MessageCircle, MessageCirclePlus, Plus, CheckCheck, X, ArrowLeft, UserRound, MoreVertical, Trash2, LogOut, Archive, Pin, Star, Bell } from "lucide-react";
 import { createGroupKey, getOrCreateIdentity, wrapGroupKey } from "@nova/crypto";
 import { NavigationRail } from "@/components/navigation-rail";
@@ -35,9 +35,14 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const { user } = useAuth();
   const userId = user?.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<ChatItem[]>([]);
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "favorites" | "groups" | "archived">("all");
+
+  useEffect(() => {
+    setFilter(searchParams.get("filter") === "unread" ? "unread" : "all");
+  }, [searchParams]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadError, setLoadError] = useState("");
