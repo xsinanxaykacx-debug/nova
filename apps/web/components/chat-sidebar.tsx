@@ -10,7 +10,7 @@ import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type ChatItem = { id: string; type: "direct" | "group"; groupVersion: number; peerId: string; name: string; username: string; avatarUrl: string | null; memberCount: number; lastAt: string | null; unread: number; archivedAt: string | null; pinnedAt: string | null; favoriteAt: string | null };
+type ChatItem = { id: string; type: "direct" | "group"; groupVersion: number; peerId: string; name: string; username: string; avatarUrl: string | null; memberCount: number; lastAt: string | null; unread: number; archivedAt: string | null; pinnedAt: string | null; favoriteAt: string | null; lastReadAt: string | null };
 type SearchProfile = { id: string; username: string; display_name: string; avatar_url?: string | null; public_key?: string | null };
 
 function initials(name: string) { return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "N"; }
@@ -39,6 +39,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "favorites" | "groups" | "archived">("all");
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [inlinePeople, setInlinePeople] = useState<SearchProfile[]>([]);
   const [inlineSearchLoading, setInlineSearchLoading] = useState(false);
@@ -58,9 +59,12 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const markRead = useCallback((id: string) => {
-    if (typeof window !== "undefined") window.localStorage.setItem(`nova-chat-read:${id}`, new Date().toISOString());
-    void supabase.from("conversation_members").update({ unread_at: null }).eq("conversation_id", id).eq("user_id", userId);
-    setItems((current) => current.map((item) => item.id === id ? { ...item, unread: 0 } : item));
+    if (!userId) return;
+    const lastReadAt = new Date().toISOString();
+    void supabase.from("conversation_members").update({ unread_at: null, last_read_at: lastReadAt })
+      .eq("conversation_id", id).eq("user_id", userId).is("left_at", null)
+      .then(({ error }) => { if (error) setLoadError("Okundu bilgisi kaydedilemedi."); });
+    setItems((current) => current.map((item) => item.id === id ? { ...item, unread: 0, lastReadAt } : item));
   }, [supabase, userId]);
 
   useEffect(() => {
@@ -71,7 +75,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       setLoadError("");
       try {
         const { data: memberships, error: membershipError } = await supabase.from("conversation_members")
-          .select("conversation_id, hidden_at, archived_at, pinned_at, favorite_at, unread_at, cleared_at").eq("user_id", userId).is("left_at", null);
+          .select("conversation_id, hidden_at, archived_at, pinned_at, favorite_at, unread_at, cleared_at, last_read_at").eq("user_id", userId).is("left_at", null);
         if (membershipError) throw membershipError;
         if (!memberships?.length) { if (active) setItems([]); return; }
         const ids = memberships.map((entry) => entry.conversation_id);
@@ -81,29 +85,31 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
           .select("id, type, name, avatar_url, group_key_version").in("id", ids);
         if (conversationsError) throw conversationsError;
         const results = await Promise.all((conversations ?? []).map(async (conversation) => {
-          const [{ data: members, error: membersError }, { data: messages, error: messagesError }] = await Promise.all([
+          const membership = memberState.get(conversation.id);
+          const lastReadAt = membership?.last_read_at ?? new Date(0).toISOString();
+          const [{ data: members, error: membersError }, { data: messages, error: messagesError }, { count: unreadCount, error: unreadError }] = await Promise.all([
             supabase.from("conversation_members").select("user_id").eq("conversation_id", conversation.id).is("left_at", null),
             supabase.from("messages").select("sender_id, created_at").eq("conversation_id", conversation.id)
               .order("created_at", { ascending: false }).limit(100),
+            supabase.from("messages").select("id", { count: "exact", head: true })
+              .eq("conversation_id", conversation.id).neq("sender_id", userId).gt("created_at", lastReadAt),
           ]);
           if (membersError) throw membersError;
           if (messagesError) throw messagesError;
+          if (unreadError) throw unreadError;
           const otherIds = (members ?? []).map((member) => member.user_id).filter((id) => id !== userId);
-          const membership = memberState.get(conversation.id);
           const { data: profiles, error: profilesError } = await supabase.from("profiles")
             .select("id, display_name, username, avatar_url").in("id", otherIds);
           if (profilesError) throw profilesError;
           const lastAt = messages?.[0]?.created_at || null;
-          const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + conversation.id) : null;
-          const unreadCount = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
-          const unread = membership?.unread_at ? Math.max(unreadCount, 1) : unreadCount;
+          const unread = membership?.unread_at ? Math.max(unreadCount ?? 0, 1) : (unreadCount ?? 0);
           if (conversation.type === "group") {
             return {
               id: conversation.id, type: "group" as const, groupVersion: conversation.group_key_version ?? 1, peerId: otherIds[0] || userId,
               name: conversation.name || "Grup sohbeti", username: `${(members ?? []).length} üye`,
               avatarUrl: conversation.avatar_url || null, memberCount: (members ?? []).length, lastAt, unread,
               archivedAt: membership?.archived_at ?? null, pinnedAt: membership?.pinned_at ?? null,
-              favoriteAt: membership?.favorite_at ?? null,
+              favoriteAt: membership?.favorite_at ?? null, lastReadAt,
             } satisfies ChatItem;
           }
           const peerId = otherIds[0];
@@ -114,7 +120,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
             name: peer.display_name || peer.username || "Kullanıcı", username: peer.username || "",
             avatarUrl: peer.avatar_url || null, memberCount: 2, lastAt, unread,
             archivedAt: membership?.archived_at ?? null, pinnedAt: membership?.pinned_at ?? null,
-            favoriteAt: membership?.favorite_at ?? null,
+            favoriteAt: membership?.favorite_at ?? null, lastReadAt,
           } satisfies ChatItem;
         }));
         if (!active) return;
@@ -128,7 +134,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     }
     void loadChats();
     return () => { active = false; };
-  }, [supabase, userId]);
+  }, [refreshKey, supabase, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -136,19 +142,29 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     const channel = supabase.channel("chat-list:" + userId).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
       if (!active) return;
       const message = payload.new as { conversation_id: string; sender_id: string; created_at: string };
-      const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + message.conversation_id) : null;
+      const isActiveConversation = activeConversationId === message.conversation_id;
+      if (isActiveConversation && message.sender_id !== userId) markRead(message.conversation_id);
       setItems((current) => current.map((item) => {
         if (item.id !== message.conversation_id) return item;
-        const isUnread = message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime());
-        return { ...item, lastAt: message.created_at, unread: isUnread ? item.unread + 1 : item.unread };
+        const isUnread = !isActiveConversation && message.sender_id !== userId
+          && (!item.lastReadAt || new Date(message.created_at).getTime() > new Date(item.lastReadAt).getTime());
+        return {
+          ...item,
+          lastAt: message.created_at,
+          unread: isActiveConversation ? 0 : isUnread ? item.unread + 1 : item.unread,
+        };
       }).sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || (b.lastAt || "").localeCompare(a.lastAt || "")));
     }).on("postgres_changes", {
       event: "INSERT", schema: "public", table: "conversation_members", filter: `user_id=eq.${userId}`,
     }, () => {
-      if (active) router.refresh();
+      if (active) setRefreshKey((value) => value + 1);
+    }).on("postgres_changes", {
+      event: "UPDATE", schema: "public", table: "conversation_members", filter: `user_id=eq.${userId}`,
+    }, () => {
+      if (active) setRefreshKey((value) => value + 1);
     }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
-  }, [router, supabase, userId]);
+  }, [activeConversationId, markRead, supabase, userId]);
 
   useEffect(() => { if (activeConversationId) markRead(activeConversationId); }, [activeConversationId, markRead]);
 
