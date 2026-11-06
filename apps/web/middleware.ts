@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const pathname = request.nextUrl.pathname;
-  const isProtectedRoute = ["/profile", "/search", "/chat"].some(
+  const isProtectedRoute = ["/profile", "/search", "/chat", "/calls"].some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 

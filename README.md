@@ -3,7 +3,7 @@
 Web-first encrypted messaging application. The Expo mobile app is currently a starter shell.
 
 ## Requirements
-- Node.js 20.11+ (pinned to 20.15.1 in .nvmrc)
+- Node.js 22+ (pinned to 22 in .nvmrc)
 - pnpm 9.15.9 (Corepack recommended)
 
 ## Setup
@@ -32,7 +32,7 @@ Web: http://localhost:3000. Expo starts the mobile skeleton.
 - `/signup`: email/password registration, display name and requested username metadata.
 - `/login`: email/password sign-in.
 - `/profile`: authenticated profile editing and sign-out.
-- Middleware refreshes the Supabase cookie session and protects `/profile`, `/search`, and `/chat/*`.
+- Middleware refreshes the Supabase cookie session and protects `/profile`, `/search`, `/chat`, and `/calls`.
 - Email confirmation returns through `/auth/callback`.
 
 ## MVP-03 chat foundation
@@ -85,11 +85,15 @@ Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in f
 - Chat list supports pinning, favorites, archiving, and marking a conversation unread.
 - These controls are stored on the current user's `conversation_members` row; they do not change another participant's list.
 
+## Security audit notes
+- RLS audit (2026-11-06): All auth.uid() references in existing RLS policies already use (SELECT auth.uid()) for initPlan caching. Required query and foreign-key indexes were verified present in the live database. No new migration was required.
+
 ## Current limitations
 - Private E2EE keys are browser-local. Clearing site data or switching browsers/devices without a transfer flow makes old messages unreadable.
 - Public-key fingerprint verification and secure multi-device key transfer are not implemented.
 - The Calls page is currently a UI shell; actual WebRTC voice/video calling and persistent call history are not implemented.
 - The mobile app remains an Expo starter shell; the functional chat experience is currently in `apps/web`.
+- Mobile E2EE is not functional. packages/crypto uses browser crypto.subtle which is unavailable in React Native/Expo Go. Mobile app is a starter shell only; encrypted chat is web-only until a custom dev build with react-native-quick-crypto is implemented and audited.
 
 ## Workspace
 - apps/web: Next.js 14 App Router.
