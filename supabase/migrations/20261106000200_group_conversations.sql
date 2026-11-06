@@ -84,170 +84,36 @@ begin
   from unnest(p_member_ids) as requested(user_id);
 
   select count(*) into key_count
-  from jsonb_array_elements(p_encrypted_keys) as entries(item)
-  where (entries.item->>'user_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    and (entries.item->>'encrypted_group_key') ~ '^NOVA1:';
+  from jsonb_array_elements(p_encrypted_keys) as entries(item);
 
-  if member_count <> cardinality(p_member_ids) or key_count <> member_count
+  if member_count <> cardinality(p_member_ids)
+    or key_count <> member_count
     or exists (
-      select 1 from unnest(p_member_ids) as requested(user_id)
-      where not exists (select 1 from public.profiles p where p.id = requested.user_id and p.public_key is not null)
-    )
-    or exists (
-      select 1 from unnest(p_member_ids) as requested(user_id)
+      select 1
+      from unnest(p_member_ids) as requested(user_id)
       where not exists (
-        select 1 from jsonb_array_elements(p_encrypted_keys) as entries(item)
-        where (entries.item->>'user_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+        select 1 from public.profiles p
+        where p.id = requested.user_id and p.public_key is not null
       )
     )
     or exists (
-      select 1 from jsonb_array_elements(p_encrypted_keys) as entries(item)
-      where (entries.item->>'user_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
-    )
-  then
-    raise exception 'Group members or encrypted keys are incomplete' using errcode = '22023';
-  end if;
-
-  insert into public.conversations (id, type, name, avatar_url)
-  values (p_conversation_id, 'group', btrim(p_name), nullif(btrim(coalesce(p_avatar_url, '')), ''));
-
-  insert into public.conversation_members (conversation_id, user_id, role)
-  select p_conversation_id, requested.user_id,
-    case when requested.user_id = actor_id then 'admin' else 'member' end
-  from unnest(p_member_ids) as requested(user_id);
-
-  insert into public.conversation_keys (conversation_id, user_id, key_sender_id, encrypted_group_key)
-  select p_conversation_id, (entries.item->>'user_id')::uuid, actor_id, entries.item->>'encrypted_group_key'
-  from jsonb_array_elements(p_encrypted_keys) as entries(item);
-
-  return p_conversation_id;
-end;
-$$;
-
-revoke all on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-create or replace function public.create_group_conversation(
-  p_conversation_id uuid,
-  p_name text,
-  p_avatar_url text,
-  p_member_ids uuid[],
-  p_encrypted_keys jsonb
-)
-returns uuid
-language sql
-security invoker
-set search_path = ''
-as $$
-  select private.create_group_conversation(
-    p_conversation_id, p_name, p_avatar_url, p_member_ids, p_encrypted_keys
-  );
-$$;
-
-revoke all on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-          and (entries.item->>'user_id')::uuid = requested.user_id
-      )
+      select 1
+      from jsonb_array_elements(p_encrypted_keys) as entries(item)
+      where entries.item->>'user_id' is null
+        or entries.item->>'user_id' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        or entries.item->>'encrypted_group_key' !~ '^NOVA1:'
+        or entries.item->>'user_id' <> all (
+          select requested.user_id::text from unnest(p_member_ids) as requested(user_id)
+        )
     )
     or exists (
-      select 1 from jsonb_array_elements(p_encrypted_keys) as entries(item)
-      where (entries.item->>'user_id')::uuid <> all(p_member_ids)
-    )
-  then
-    raise exception 'Group members or encrypted keys are incomplete' using errcode = '22023';
-  end if;
-
-  insert into public.conversations (id, type, name, avatar_url)
-  values (p_conversation_id, 'group', btrim(p_name), nullif(btrim(coalesce(p_avatar_url, '')), ''));
-
-  insert into public.conversation_members (conversation_id, user_id, role)
-  select p_conversation_id, requested.user_id,
-    case when requested.user_id = actor_id then 'admin' else 'member' end
-  from unnest(p_member_ids) as requested(user_id);
-
-  insert into public.conversation_keys (conversation_id, user_id, key_sender_id, encrypted_group_key)
-  select p_conversation_id, (entries.item->>'user_id')::uuid, actor_id, entries.item->>'encrypted_group_key'
-  from jsonb_array_elements(p_encrypted_keys) as entries(item);
-
-  return p_conversation_id;
-end;
-$$;
-
-revoke all on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-create or replace function public.create_group_conversation(
-  p_conversation_id uuid,
-  p_name text,
-  p_avatar_url text,
-  p_member_ids uuid[],
-  p_encrypted_keys jsonb
-)
-returns uuid
-language sql
-security invoker
-set search_path = ''
-as $$
-  select private.create_group_conversation(
-    p_conversation_id, p_name, p_avatar_url, p_member_ids, p_encrypted_keys
-  );
-$$;
-
-revoke all on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-        and (entries.item->>'user_id')::uuid <> all(p_member_ids)
-    )
-  then
-    raise exception 'Group members or encrypted keys are incomplete' using errcode = '22023';
-  end if;
-
-  insert into public.conversations (id, type, name, avatar_url)
-  values (p_conversation_id, 'group', btrim(p_name), nullif(btrim(coalesce(p_avatar_url, '')), ''));
-
-  insert into public.conversation_members (conversation_id, user_id, role)
-  select p_conversation_id, requested.user_id,
-    case when requested.user_id = actor_id then 'admin' else 'member' end
-  from unnest(p_member_ids) as requested(user_id);
-
-  insert into public.conversation_keys (conversation_id, user_id, key_sender_id, encrypted_group_key)
-  select p_conversation_id, (entries.item->>'user_id')::uuid, actor_id, entries.item->>'encrypted_group_key'
-  from jsonb_array_elements(p_encrypted_keys) as entries(item);
-
-  return p_conversation_id;
-end;
-$$;
-
-revoke all on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function private.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-create or replace function public.create_group_conversation(
-  p_conversation_id uuid,
-  p_name text,
-  p_avatar_url text,
-  p_member_ids uuid[],
-  p_encrypted_keys jsonb
-)
-returns uuid
-language sql
-security invoker
-set search_path = ''
-as $$
-  select private.create_group_conversation(
-    p_conversation_id, p_name, p_avatar_url, p_member_ids, p_encrypted_keys
-  );
-$$;
-
-revoke all on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) from public, anon, authenticated;
-grant execute on function public.create_group_conversation(uuid, text, text, uuid[], jsonb) to authenticated;
-
-          and (entries.item->>'user_id')::uuid = requested.user_id
+      select 1
+      from unnest(p_member_ids) as requested(user_id)
+      where not exists (
+        select 1
+        from jsonb_array_elements(p_encrypted_keys) as entries(item)
+        where entries.item->>'user_id' = requested.user_id::text
       )
-    )
-    or exists (
-      select 1 from jsonb_array_elements(p_encrypted_keys) as entries(item)
-      where (entries.item->>'user_id')::uuid <> all(p_member_ids)
     )
   then
     raise exception 'Group members or encrypted keys are incomplete' using errcode = '22023';
