@@ -10,6 +10,16 @@ import { createGroupKey, decrypt, deriveConversationKey, encrypt, getOrCreateIde
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { ChatSidebar } from "@/components/chat-sidebar";
 
+function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12_000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(label + " 12 saniye içinde yanıt vermedi. Bağlantıyı kontrol edip yeniden deneyin.")), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error: unknown) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 type EncryptedMediaPayload = { version: 1; name: string; mimeType: string; size: number; data: string };
 const MAX_MEDIA_BYTES = 300 * 1024;
 
@@ -97,9 +107,22 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
 
     async function initializeEncryption() {
       try {
-        const identity = await getOrCreateIdentity(currentUserId);
-        const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
-        if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+        const { data: ownProfile, error: ownProfileError } = await withTimeout(
+          supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+          "Hesap şifreleme anahtarı sorgusu",
+        );
+        if (ownProfileError) throw new Error("Hesap şifreleme anahtarı okunamadı: " + ownProfileError.message);
+        const identity = await withTimeout(
+          getOrCreateIdentity(currentUserId, ownProfile?.public_key ?? null),
+          "Yerel şifreleme anahtarı kontrolü",
+        );
+        if (!ownProfile?.public_key) {
+          const { error: publishError } = await withTimeout(
+            supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId),
+            "Hesap şifreleme anahtarının kaydı",
+          );
+          if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+        }
         let key: CryptoKey;
         let epochKeys: Record<number, CryptoKey> = {};
         if (conversationType === "group") {
