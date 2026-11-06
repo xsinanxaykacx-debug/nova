@@ -65,6 +65,8 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+const EMPTY_GROUP_KEY_EPOCHS: { key_version: number; encrypted_group_key: string; key_sender_public_key: string | null }[] = [];
+
 type GroupParticipant = { id: string; display_name: string; username: string; avatar_url: string | null };
 type ChatRoomProps = {
   conversationId: string;
@@ -97,7 +99,7 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = [], groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
@@ -533,7 +535,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
                   {conversationType === "group" && !own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || sender?.username || "Üye")}</span>}</div>}
                   <article className={`message-bubble relative ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
                     {conversationType === "group" && <p className={`mb-1 text-[11px] font-semibold ${own ? "text-sky-100/80" : "text-slate-300"}`}>{own ? "Sen" : sender?.display_name || sender?.username || "Grup üyesi"}</p>}
-                    {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
+                    {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">{error && !cryptoReady ? "Şifreleme başlatılamadı. Üstteki hata ayrıntısını kontrol et." : "Şifre çözülüyor..."}</p> : message.type === "text" ? (
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
                     ) : mediaPayload ? message.type === "audio" ? (
                       <audio controls preload="metadata" className="max-w-full" src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} />
