@@ -1233,3 +1233,110 @@ p, small, time, label, .conversation-status, .peer-profile-username,
   filter: none !important; text-shadow: none !important; color: #00BFFF !important;
 }
 .navigation-rail .rail-link svg { filter: none !important; box-shadow: none !important; text-shadow: none !important; }
+
+
+/* NOVA: sade üç bölümlü görünüm */
+.navigation-rail {
+  width: 68px !important;
+  min-width: 68px !important;
+  flex: 0 0 68px !important;
+  background: #08090d !important;
+  border-right: 1px solid #20232b !important;
+  padding: 18px 8px !important;
+}
+.navigation-rail .rail-link,
+.navigation-rail .rail-link:hover,
+.navigation-rail .rail-link-active {
+  width: 42px !important;
+  height: 42px !important;
+  color: #9297a1 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+}
+.navigation-rail .rail-link-active { color: #e1e4e9 !important; }
+.navigation-rail .rail-link svg { color: inherit !important; }
+.chat-sidebar-layout { width: 420px !important; min-width: 420px !important; flex: 0 0 420px !important; }
+.chat-sidebar {
+  width: 352px !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  background: #111a2d !important;
+  border-right: 1px solid #263149 !important;
+}
+.chat-list-heading, .calls-heading {
+  background: #111a2d !important;
+  border-bottom: 1px solid #263149 !important;
+}
+.chat-list-heading h1, .calls-heading h1 { color: #aeb5c2 !important; font-size: 18px !important; font-weight: 500 !important; }
+.chat-new-button, .call-heading-action {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: #aeb5c2 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 50%;
+}
+.chat-new-button svg, .call-heading-action svg { color: #aeb5c2 !important; }
+.chat-search-field {
+  height: 40px !important;
+  background: transparent !important;
+  border: 1px solid #596273 !important;
+  border-radius: 8px !important;
+}
+.chat-search-field input { background: transparent !important; color: #e5e7eb !important; }
+.chat-filter-pill {
+  padding: 7px 11px !important;
+  border: 1px solid #465064 !important;
+  border-radius: 8px !important;
+  color: #aeb5c2 !important;
+  background: transparent !important;
+  font-size: 12px !important;
+}
+.chat-filter-pill-active {
+  color: #e2e5eb !important;
+  background: #27344e !important;
+  border-color: #657087 !important;
+}
+.chat-list-item, .chat-list-item-active {
+  margin: 2px 8px !important;
+  padding: 10px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+}
+.chat-list-item-active { background: #26344f !important; }
+.chat-list-item strong { color: #e2e5eb !important; }
+.chat-list-copy p, .chat-list-item time { color: #a4acba !important; }
+.chat-room-panel { background: #c9d8ea !important; border: 0 !important; }
+.chat-room-header, .chat-composer { background: #b9cbe0 !important; border-color: #a8bad0 !important; }
+.chat-wallpaper { background: #c9d8ea !important; }
+.message-bubble-incoming, .message-bubble-outgoing {
+  background: #edf0f4 !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  color: #111827 !important;
+}
+.message-bubble-incoming *, .message-bubble-outgoing * {
+  color: #111827 !important;
+}
+.message-bubble-incoming time, .message-bubble-outgoing time { color: #697386 !important; }
+.chat-message-input { background: #edf0f4 !important; color: #111827 !important; border: 1px solid #aab8ca !important; }
+.chat-message-input::placeholder { color: #687386 !important; }
+.calls-sidebar { width: 352px !important; flex: 1 1 auto !important; background: #111a2d !important; }
+.calls-detail-panel { background: #c9d8ea !important; }
+.call-history-row { display: flex; align-items: center; gap: 4px; min-height: 68px; padding: 5px 8px; border-bottom: 1px solid #263149; }
+.call-history-row-selected { background: #26344f; border-radius: 8px; }
+.call-select { width: 28px; height: 36px; display: grid; place-items: center; background: transparent !important; }
+.call-select span { width: 16px; height: 16px; display: grid; place-items: center; border: 1px solid #7c8799; border-radius: 4px; color: #d7dce5; }
+.call-person { display: flex; align-items: center; gap: 10px; padding: 8px; background: transparent !important; }
+.call-person strong { display: block; color: #e2e5eb; font-size: 13px; font-weight: 500; }
+.call-person small, .call-person time { color: #a4acba; font-size: 11px; }
+.call-avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #26344f; color: #c5ccd8; }
+@media (max-width: 767px) {
+  .chat-sidebar-layout { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }
+  .chat-sidebar { width: 100% !important; }
+  .calls-detail-panel { display: none !important; }
+}
