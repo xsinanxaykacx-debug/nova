@@ -187,6 +187,27 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [addMessages, conversationId, supabase]);
 
+  useEffect(() => {
+    if (!messages.length) return;
+    const markVisibleConversationRead = () => {
+      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+      const lastReadAt = new Date().toISOString();
+      void supabase.from("conversation_members")
+        .update({ unread_at: null, last_read_at: lastReadAt })
+        .eq("conversation_id", conversationId).eq("user_id", currentUserId).is("left_at", null)
+        .then(({ error: readError }) => {
+          if (readError) console.error("Unable to persist active conversation read position:", readError);
+        });
+    };
+    markVisibleConversationRead();
+    document.addEventListener("visibilitychange", markVisibleConversationRead);
+    window.addEventListener("focus", markVisibleConversationRead);
+    return () => {
+      document.removeEventListener("visibilitychange", markVisibleConversationRead);
+      window.removeEventListener("focus", markVisibleConversationRead);
+    };
+  }, [conversationId, currentUserId, messages.length, supabase]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, decryptedMessages]);
 
   useEffect(() => {
