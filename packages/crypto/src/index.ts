@@ -172,3 +172,54 @@ export async function decrypt(envelope: string, key: CryptoKey, conversationId: 
   );
   return new TextDecoder().decode(plaintext);
 }
+
+
+export interface GeneratedGroupKey {
+  key: CryptoKey;
+  rawKeyHex: string;
+}
+
+/** Creates a random AES-256 group key. Raw bytes are returned only for per-member wrapping. */
+export async function createGroupKey(): Promise<GeneratedGroupKey> {
+  const raw = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  try {
+    const key = await requireWebCrypto().importKey(
+      "raw", toArrayBuffer(raw), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"],
+    );
+    return { key, rawKeyHex: bytesToHex(raw) };
+  } finally {
+    raw.fill(0);
+  }
+}
+
+/** Wraps a group key for one member using the creator/member ECDH shared secret. */
+export async function wrapGroupKey(
+  rawKeyHex: string,
+  senderPrivateKey: CryptoKey,
+  recipientPublicKeyHex: string,
+  conversationId: string,
+): Promise<string> {
+  if (hexToBytes(rawKeyHex).length !== 32) throw new Error("Grup anahtarı geçersiz.");
+  const wrappingKey = await deriveConversationKey(senderPrivateKey, recipientPublicKeyHex, conversationId);
+  return encrypt(rawKeyHex, wrappingKey, conversationId);
+}
+
+/** Unwraps the member-specific group-key envelope and imports a non-extractable AES key. */
+export async function unwrapGroupKey(
+  envelope: string,
+  recipientPrivateKey: CryptoKey,
+  senderPublicKeyHex: string,
+  conversationId: string,
+): Promise<CryptoKey> {
+  const wrappingKey = await deriveConversationKey(recipientPrivateKey, senderPublicKeyHex, conversationId);
+  const rawKeyHex = await decrypt(envelope, wrappingKey, conversationId);
+  const raw = hexToBytes(rawKeyHex);
+  if (raw.length !== 32) throw new Error("Çözülen grup anahtarının uzunluğu geçersiz.");
+  try {
+    return await requireWebCrypto().importKey(
+      "raw", toArrayBuffer(raw), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"],
+    );
+  } finally {
+    raw.fill(0);
+  }
+}

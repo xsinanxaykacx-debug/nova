@@ -5,12 +5,13 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, MessageCircle, MessageCirclePlus, Plus, CheckCheck, X, ArrowLeft, UserRound } from "lucide-react";
+import { createGroupKey, getOrCreateIdentity, wrapGroupKey } from "@nova/crypto";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type ChatItem = { id: string; peerId: string; name: string; username: string; avatarUrl: string | null; lastAt: string | null; unread: number };
-type SearchProfile = { id: string; username: string; display_name: string; avatar_url?: string | null };
+type ChatItem = { id: string; type: "direct" | "group"; peerId: string; name: string; username: string; avatarUrl: string | null; memberCount: number; lastAt: string | null; unread: number };
+type SearchProfile = { id: string; username: string; display_name: string; avatar_url?: string | null; public_key?: string | null };
 
 function initials(name: string) { return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "N"; }
 function timeLabel(value: string | null) {
@@ -38,6 +39,11 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const [peopleSearched, setPeopleSearched] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [modalError, setModalError] = useState("");
+  const [groupMode, setGroupMode] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupAvatarUrl, setGroupAvatarUrl] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const markRead = useCallback((id: string) => {
@@ -52,26 +58,44 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       setLoading(true);
       setLoadError("");
       try {
-        const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", userId);
+        const { data: memberships, error: membershipError } = await supabase.from("conversation_members")
+          .select("conversation_id").eq("user_id", userId);
         if (membershipError) throw membershipError;
         if (!memberships?.length) { if (active) setItems([]); return; }
         const ids = memberships.map((entry) => entry.conversation_id);
-        const results = await Promise.all(ids.map(async (id) => {
+        const { data: conversations, error: conversationsError } = await supabase.from("conversations")
+          .select("id, type, name, avatar_url").in("id", ids);
+        if (conversationsError) throw conversationsError;
+        const results = await Promise.all((conversations ?? []).map(async (conversation) => {
           const [{ data: members, error: membersError }, { data: messages, error: messagesError }] = await Promise.all([
-            supabase.from("conversation_members").select("user_id").eq("conversation_id", id).neq("user_id", userId),
-            supabase.from("messages").select("sender_id, created_at").eq("conversation_id", id).order("created_at", { ascending: false }).limit(100),
+            supabase.from("conversation_members").select("user_id").eq("conversation_id", conversation.id),
+            supabase.from("messages").select("sender_id, created_at").eq("conversation_id", conversation.id)
+              .order("created_at", { ascending: false }).limit(100),
           ]);
           if (membersError) throw membersError;
           if (messagesError) throw messagesError;
-          const peerId = members?.[0]?.user_id;
-          if (!peerId) return null;
-          const { data: peer, error: peerError } = await supabase.from("profiles").select("display_name, username, avatar_url").eq("id", peerId).maybeSingle();
-          if (peerError) throw peerError;
-          if (!peer) return null;
+          const otherIds = (members ?? []).map((member) => member.user_id).filter((id) => id !== userId);
+          const { data: profiles, error: profilesError } = await supabase.from("profiles")
+            .select("id, display_name, username, avatar_url").in("id", otherIds);
+          if (profilesError) throw profilesError;
           const lastAt = messages?.[0]?.created_at || null;
-          const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + id) : null;
+          const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + conversation.id) : null;
           const unread = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
-          return { id, peerId, name: peer.display_name || peer.username || "Kullan\u0131c\u0131", username: peer.username || "", avatarUrl: peer.avatar_url || null, lastAt, unread } satisfies ChatItem;
+          if (conversation.type === "group") {
+            return {
+              id: conversation.id, type: "group" as const, peerId: otherIds[0] || userId,
+              name: conversation.name || "Grup sohbeti", username: `${(members ?? []).length} üye`,
+              avatarUrl: conversation.avatar_url || null, memberCount: (members ?? []).length, lastAt, unread,
+            } satisfies ChatItem;
+          }
+          const peerId = otherIds[0];
+          const peer = profiles?.find((profile) => profile.id === peerId);
+          if (!peer) return null;
+          return {
+            id: conversation.id, type: "direct" as const, peerId,
+            name: peer.display_name || peer.username || "Kullanıcı", username: peer.username || "",
+            avatarUrl: peer.avatar_url || null, memberCount: 2, lastAt, unread,
+          } satisfies ChatItem;
         }));
         if (!active) return;
         setItems(results.filter((item): item is ChatItem => item !== null).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
@@ -79,7 +103,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
         if (!active) return;
         console.error("Chat list initial load failed:", error);
         setItems([]);
-        setLoadError("Sohbetler y\u00FCklenemedi. Ba\u011Flant\u0131n\u0131 kontrol edip sayfay\u0131 yenile.");
+        setLoadError("Sohbetler yüklenemedi. Bağlantını kontrol edip sayfayı yenile.");
       } finally { if (active) setLoading(false); }
     }
     void loadChats();
@@ -123,7 +147,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     const safeTerm = personTerm.trim().replace(/[^a-zA-Z0-9_ğüşöçıİĞÜŞÖÇ .-]/g, "").replace(/\s+/g, " ");
     if (safeTerm.length < 2) { setModalError("En az 2 karakter gir."); setPeople([]); return; }
     setPeopleLoading(true); setModalError(""); setPeopleSearched(true);
-    const { data, error } = await supabase.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id)
+    const { data, error } = await supabase.from("profiles").select("id, username, display_name, avatar_url, public_key").neq("id", user.id)
       .or(`username.ilike.%${safeTerm}%,display_name.ilike.%${safeTerm}%`).order("username", { ascending: true }).limit(30);
     setPeopleLoading(false);
     if (error) { setModalError("Kullanıcılar aranırken hata oluştu. Tekrar dene."); setPeople([]); return; }
@@ -140,9 +164,55 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     setNewChatOpen(false); router.push(`/chat/${data}`);
   }
 
+  async function createGroup() {
+    if (!user || creatingGroup) return;
+    const name = groupName.trim();
+    if (name.length < 2 || name.length > 80) { setModalError("Grup adı 2-80 karakter olmalı."); return; }
+    if (selectedMembers.length < 2) { setModalError("Grup için en az 2 kişi seç."); return; }
+    setCreatingGroup(true); setModalError("");
+    try {
+      const { data: selectedProfiles, error: selectedError } = await supabase.from("profiles")
+        .select("id, public_key").in("id", selectedMembers);
+      if (selectedError || !selectedProfiles || selectedProfiles.length !== selectedMembers.length) {
+        throw new Error("Seçilen üyelerin profilleri yüklenemedi.");
+      }
+      if (selectedProfiles.some((profile) => !profile.public_key)) {
+        throw new Error("Seçilen üyelerden bazılarının E2EE açık anahtarı hazır değil. Önce bu üyelerle birebir sohbet başlatılmalı.");
+      }
+      const identity = await getOrCreateIdentity(user.id);
+      const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", user.id);
+      if (publishError) throw new Error("Kendi açık anahtarın kaydedilemedi: " + publishError.message);
+      const { data: ownProfile, error: ownProfileError } = await supabase.from("profiles")
+        .select("public_key").eq("id", user.id).single();
+      if (ownProfileError || !ownProfile?.public_key) throw new Error("Kendi açık anahtarın okunamadı.");
+      const conversationId = crypto.randomUUID();
+      const generated = await createGroupKey();
+      const recipients = [{ id: user.id, public_key: ownProfile.public_key }, ...selectedProfiles];
+      const encryptedKeys = await Promise.all(recipients.map(async (recipient) => ({
+        user_id: recipient.id,
+        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, recipient.public_key!, conversationId),
+      })));
+      const memberIds = recipients.map((recipient) => recipient.id);
+      const { data, error } = await supabase.rpc("create_group_conversation", {
+        p_conversation_id: conversationId,
+        p_name: name,
+        p_avatar_url: groupAvatarUrl.trim() || null,
+        p_member_ids: memberIds,
+        p_encrypted_keys: encryptedKeys,
+      });
+      if (error || !data) throw new Error(error?.message || "Grup oluşturulamadı.");
+      setNewChatOpen(false);
+      setGroupMode(false); setGroupName(""); setGroupAvatarUrl(""); setSelectedMembers([]);
+      router.push(`/chat/${data}`);
+    } catch (groupError) {
+      console.error("E2EE group creation failed:", groupError);
+      setModalError(groupError instanceof Error ? groupError.message : "Grup oluşturulamadı.");
+    } finally { setCreatingGroup(false); }
+  }
+
   const filtered = items.filter((item) => {
     const matchesTerm = `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"));
-    const matchesFilter = filter === "all" || (filter === "unread" && item.unread > 0);
+    const matchesFilter = filter === "all" || (filter === "unread" && item.unread > 0) || (filter === "groups" && item.type === "group");
     return matchesTerm && matchesFilter;
   });
 
@@ -152,7 +222,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
         <header className="chat-list-heading flex h-[68px] shrink-0 items-center justify-between px-5">
           <h1 className="text-[19px] font-semibold text-slate-300">Sohbet</h1>
-          <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><MessageCirclePlus size={22} /></button>
+          <button type="button" onClick={() => { setNewChatOpen(true); setGroupMode(false); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); setSelectedMembers([]); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><MessageCirclePlus size={22} /></button>
         </header>
         <div className="chat-search-wrap shrink-0 px-5 pb-4">
           <label className="search-field chat-search-field"><Search size={19} className="shrink-0 text-slate-400" /><input id="chat-search-input" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ara" aria-label="Kişi veya sohbet ara" /></label>
@@ -166,7 +236,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
             {inlinePeople.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
               <span className="avatar-ring">{person.avatar_url ? <Image src={person.avatar_url} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : initials(person.display_name || person.username)}</span>
               <span className="min-w-0 flex-1 text-left"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
-              <span className="new-chat-action">{openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
+              <span className="new-chat-action">Mesaj</span>
             </button>)}
             {!inlineSearchLoading && inlinePeople.length === 0 && <p className="inline-people-empty">Eşleşen kişi bulunamadı.</p>}
           </section>}
@@ -183,15 +253,20 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
 
       {newChatOpen && <div className="new-chat-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewChatOpen(false); }}>
         <section className="new-chat-modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title">
-          <header className="new-chat-modal-header"><div className="flex items-center gap-3"><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><ArrowLeft size={20} /></button><h2 id="new-chat-title">Yeni sohbet</h2></div><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={19} /></button></header>
+          <header className="new-chat-modal-header"><div className="flex items-center gap-3"><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><ArrowLeft size={20} /></button><h2 id="new-chat-title">Yeni sohbet</h2></div><div className="flex items-center gap-2"><button type="button" onClick={() => { setGroupMode((value) => !value); setModalError(""); }} className="new-chat-action">{groupMode ? "Birebir" : "Yeni Grup"}</button><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={19} /></button></div></header>
+          {groupMode && <div className="space-y-2 px-5 pt-4"><input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} placeholder="Grup adı" aria-label="Grup adı" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><input value={groupAvatarUrl} onChange={(event) => setGroupAvatarUrl(event.target.value)} placeholder="Grup fotoğrafı URL (isteğe bağlı)" aria-label="Grup fotoğrafı URL" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><p className="text-xs text-slate-400">Gruba eklenecek kişileri aşağıdan seç. En az 2 kişi.</p></div>}
           <form onSubmit={searchPeople} className="new-chat-search"><Search size={19} /><input autoFocus value={personTerm} onChange={(event) => setPersonTerm(event.target.value)} placeholder="İsim veya kullanıcı adı ara" aria-label="Kişi ara" /></form>
           <div className="new-chat-results">
             {!peopleSearched && <div className="new-chat-hint"><UserRound size={30} /><p>Yeni bir sohbet başlatmak için kişi ara.</p></div>}
-            {people.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
+            {people.map((person) => <button key={person.id} type="button" onClick={() => {
+              if (groupMode) setSelectedMembers((current) => current.includes(person.id) ? current.filter((id) => id !== person.id) : [...current, person.id]);
+              else void startConversation(person);
+            }} disabled={openingId !== null || creatingGroup} className="new-chat-person">
               <span className="avatar-ring">{person.avatar_url ? <Image src={person.avatar_url} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : initials(person.display_name || person.username)}</span>
               <span className="min-w-0 flex-1 text-left"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
-              <span className="new-chat-action">{openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
+              <span className="new-chat-action">{groupMode ? selectedMembers.includes(person.id) ? "Seçildi" : "Ekle" : openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
             </button>)}
+            {groupMode && <div className="px-2 py-3"><p className="mb-3 text-xs text-slate-300">Seçilen üye: {selectedMembers.length}</p><button type="button" onClick={() => void createGroup()} disabled={creatingGroup || selectedMembers.length < 2 || groupName.trim().length < 2} className="new-chat-action w-full">{creatingGroup ? "Grup oluşturuluyor..." : "Grup oluştur"}</button></div>}
             {modalError && <p role="status" className="new-chat-error">{modalError}</p>}
           </div>
         </section>

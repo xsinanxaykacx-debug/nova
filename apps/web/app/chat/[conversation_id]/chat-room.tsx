@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download } from "lucide-react";
 import type { Message } from "@nova/types";
-import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
+import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity, unwrapGroupKey } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { ChatSidebar } from "@/components/chat-sidebar";
 
@@ -23,13 +23,19 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+type GroupParticipant = { id: string; display_name: string; username: string; avatar_url: string | null };
 type ChatRoomProps = {
   conversationId: string;
   currentUserId: string;
+  conversationType: "direct" | "group";
   peerPublicKey: string | null;
   peerName: string;
   peerUsername: string;
   peerAvatarUrl: string | null;
+  groupEncryptedKey?: string | null;
+  groupKeySenderPublicKey?: string | null;
+  groupMemberCount?: number;
+  groupParticipants?: GroupParticipant[];
   initialMessages: Message[];
 };
 
@@ -47,7 +53,7 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerName, peerUsername, peerAvatarUrl, initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupEncryptedKey, groupKeySenderPublicKey, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
@@ -79,11 +85,17 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
 
     async function initializeEncryption() {
       try {
-        if (!peerPublicKey) throw new Error("Karşı tarafın açık anahtarı henüz hazır değil. Diğer kullanıcının giriş yapmasını bekle veya sohbeti yenile.");
         const identity = await getOrCreateIdentity(currentUserId);
         const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
         if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
-        const key = await deriveConversationKey(identity.privateKey, peerPublicKey, conversationId);
+        let key: CryptoKey;
+        if (conversationType === "group") {
+          if (!groupEncryptedKey || !groupKeySenderPublicKey) throw new Error("Bu grup için sana ait şifreli grup anahtarı bulunamadı.");
+          key = await unwrapGroupKey(groupEncryptedKey, identity.privateKey, groupKeySenderPublicKey, conversationId);
+        } else {
+          if (!peerPublicKey) throw new Error("Karşı tarafın açık anahtarı henüz hazır değil. Diğer kullanıcının giriş yapmasını bekle veya sohbeti yenile.");
+          key = await deriveConversationKey(identity.privateKey, peerPublicKey, conversationId);
+        }
         if (!active) return;
         decryptedIds.current.clear();
         setDecryptedMessages({});
@@ -98,7 +110,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     }
     void initializeEncryption();
     return () => { active = false; };
-  }, [conversationId, currentUserId, peerPublicKey, supabase]);
+  }, [conversationId, conversationType, currentUserId, groupEncryptedKey, groupKeySenderPublicKey, peerPublicKey, supabase]);
 
   useEffect(() => {
     if (!sharedKey) return;
@@ -275,7 +287,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             <Link href="/chat" aria-label="Geri, sohbet listesine dön" className="icon-button inline-flex items-center gap-1.5 px-2 md:hidden"><ArrowLeft size={20} /><span className="text-sm font-medium">Geri</span></Link>
             <button type="button" onClick={() => setProfileOpen(true)} aria-haspopup="dialog" aria-label={"Kullan\u0131c\u0131 profilini a\u00E7"} className="conversation-profile-card flex min-w-0 items-center gap-3 rounded-2xl px-4 py-2 text-left transition hover:border-sky-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <div className="avatar-ring avatar-ring-large conversation-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt="" width={58} height={58} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
-              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
+              <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{conversationType === "group" ? `${groupMemberCount ?? groupParticipants.length} üye` : peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
             </button>
           </div>
           <div className="chat-header-actions flex items-center gap-2"><span className={`mr-1 hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "text-slate-300" : "text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span><button type="button" disabled aria-label="Arama" title="Arama" className="nova-header-action"><Phone size={16} /></button><button type="button" onClick={() => setProfileOpen(true)} aria-label="Profil" title="Profil" className="nova-header-action"><UserRound size={16} /></button></div>
@@ -287,6 +299,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
             <div className="mx-auto flex max-w-4xl flex-col gap-2.5">
               {messages.map((message) => {
                 const own = message.sender_id === currentUserId;
+                const sender = groupParticipants.find((participant) => participant.id === message.sender_id);
                 const content = decryptedMessages[message.id];
                 let mediaPayload: EncryptedMediaPayload | null = null;
                 if (content && message.type !== "text") {
@@ -295,8 +308,10 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
                     if (parsed.version === 1 && typeof parsed.data === "string" && typeof parsed.name === "string") mediaPayload = parsed;
                   } catch { mediaPayload = null; }
                 }
-                return <div key={message.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
+                return <div key={message.id} className={`flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
+                  {conversationType === "group" && !own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || sender?.username || "Üye")}</span>}</div>}
                   <article className={`message-bubble ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
+                    {conversationType === "group" && <p className={`mb-1 text-[11px] font-semibold ${own ? "text-sky-100/80" : "text-slate-300"}`}>{own ? "Sen" : sender?.display_name || sender?.username || "Grup üyesi"}</p>}
                     {content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
                     ) : mediaPayload ? message.type === "audio" ? (
@@ -312,6 +327,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
                       {own && <CheckCheck size={15} className="text-sky-200" aria-label="İletildi" />}
                     </div>
                   </article>
+                  {conversationType === "group" && own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || "Sen")}</span>}</div>}
                 </div>;
               })}
             </div>

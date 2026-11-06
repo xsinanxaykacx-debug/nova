@@ -24,6 +24,8 @@ export interface Device {
 export interface Conversation {
   id: UUID;
   type: "direct" | "group";
+  name: string | null;
+  avatar_url: string | null;
   created_at: ISODateString;
   updated_at: ISODateString;
 }
@@ -31,7 +33,23 @@ export interface Conversation {
 export interface ConversationMember {
   conversation_id: UUID;
   user_id: UUID;
+  role: "admin" | "member";
   joined_at: ISODateString;
+}
+
+export interface ConversationKey {
+  conversation_id: UUID;
+  user_id: UUID;
+  key_sender_id: UUID;
+  encrypted_group_key: string;
+  created_at: ISODateString;
+}
+
+export interface ConversationParticipant {
+  id: UUID;
+  display_name: string;
+  username: string;
+  avatar_url: string | null;
 }
 
 export interface Message {
