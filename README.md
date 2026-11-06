@@ -1,6 +1,6 @@
 # NOVA CHAT
 
-Cross-platform messaging application for web, Android, and iOS.
+Web-first encrypted messaging application. The Expo mobile app is currently a starter shell.
 
 ## Requirements
 - Node.js 20.11+ (pinned to 20.15.1 in .nvmrc)
@@ -69,7 +69,27 @@ Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in f
 - MVP-05 adds `profiles.public_key`; authenticated users may publish their own public key. Private keys remain in browser IndexedDB and are never stored in the database.
 - Membership writes and conversation creation are not granted directly to clients. The authenticated `create_direct_conversation(target_user_id)` RPC creates both memberships atomically and reuses an existing direct conversation. Its membership-check helper lives in the non-exposed `private` schema.
 
-The current milestone implements direct one-to-one E2EE. Multi-device key synchronization, group key distribution, and verified public-key fingerprints remain future work.
+## MVP-07 voice and file messages
+- Voice notes are recorded with the browser `MediaRecorder`; files are selected from the device.
+- Media metadata and bytes are serialized into one payload and encrypted with the active conversation key before insertion.
+- Only `NOVA1:` ciphertext envelopes are accepted for media messages.
+- Audio and file messages are limited to 300 KB each in this MVP.
+
+## MVP-08 group conversations
+- Groups support a name, optional avatar URL, multiple members, and admin/member roles.
+- A random AES-256 group key is wrapped separately for each member using ECDH/HKDF and stored only as encrypted per-member envelopes in `conversation_keys`.
+- Group messages use the group key; direct chats retain pairwise ECDH key derivation.
+- Users can leave groups. Direct chats can be hidden from the current user's list. Senders can soft-delete their own messages.
+
+## Per-user conversation controls
+- Chat list supports pinning, favorites, archiving, and marking a conversation unread.
+- These controls are stored on the current user's `conversation_members` row; they do not change another participant's list.
+
+## Current limitations
+- Private E2EE keys are browser-local. Clearing site data or switching browsers/devices without a transfer flow makes old messages unreadable.
+- Public-key fingerprint verification and secure multi-device key transfer are not implemented.
+- The Calls page is currently a UI shell; actual WebRTC voice/video calling and persistent call history are not implemented.
+- The mobile app remains an Expo starter shell; the functional chat experience is currently in `apps/web`.
 
 ## Workspace
 - apps/web: Next.js 14 App Router.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MessageCircle, MessageCirclePlus, Plus, CheckCheck, X, ArrowLeft, UserRound, MoreVertical, Trash2, LogOut, Archive, Pin, Star, Bell, Eraser } from "lucide-react";
+import { Search, MessageCircle, MessageCirclePlus, Plus, CheckCheck, X, ArrowLeft, UserRound, MoreVertical, Trash2, LogOut, Archive, Pin, Star, Bell } from "lucide-react";
 import { createGroupKey, getOrCreateIdentity, wrapGroupKey } from "@nova/crypto";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
@@ -79,17 +79,21 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
           if (membersError) throw membersError;
           if (messagesError) throw messagesError;
           const otherIds = (members ?? []).map((member) => member.user_id).filter((id) => id !== userId);
+          const membership = memberState.get(conversation.id);
           const { data: profiles, error: profilesError } = await supabase.from("profiles")
             .select("id, display_name, username, avatar_url").in("id", otherIds);
           if (profilesError) throw profilesError;
           const lastAt = messages?.[0]?.created_at || null;
           const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + conversation.id) : null;
-          const unread = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
+          const unreadCount = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
+          const unread = membership?.unread_at ? Math.max(unreadCount, 1) : unreadCount;
           if (conversation.type === "group") {
             return {
               id: conversation.id, type: "group" as const, peerId: otherIds[0] || userId,
               name: conversation.name || "Grup sohbeti", username: `${(members ?? []).length} üye`,
               avatarUrl: conversation.avatar_url || null, memberCount: (members ?? []).length, lastAt, unread,
+              archivedAt: membership?.archived_at ?? null, pinnedAt: membership?.pinned_at ?? null,
+              favoriteAt: membership?.favorite_at ?? null,
             } satisfies ChatItem;
           }
           const peerId = otherIds[0];
@@ -99,10 +103,12 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
             id: conversation.id, type: "direct" as const, peerId,
             name: peer.display_name || peer.username || "Kullanıcı", username: peer.username || "",
             avatarUrl: peer.avatar_url || null, memberCount: 2, lastAt, unread,
+            archivedAt: membership?.archived_at ?? null, pinnedAt: membership?.pinned_at ?? null,
+            favoriteAt: membership?.favorite_at ?? null,
           } satisfies ChatItem;
         }));
         if (!active) return;
-        setItems(results.filter((item): item is ChatItem => item !== null && !hiddenIds.has(item.id)).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+        setItems(results.filter((item): item is ChatItem => item !== null && !hiddenIds.has(item.id)).sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || (b.lastAt || "").localeCompare(a.lastAt || "")));
       } catch (error) {
         if (!active) return;
         console.error("Chat list initial load failed:", error);
@@ -125,7 +131,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
         if (item.id !== message.conversation_id) return item;
         const isUnread = message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime());
         return { ...item, lastAt: message.created_at, unread: isUnread ? item.unread + 1 : item.unread };
-      }).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+      }).sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || (b.lastAt || "").localeCompare(a.lastAt || "")));
     }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [supabase, userId]);
@@ -217,6 +223,33 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     } finally { setCreatingGroup(false); }
   }
 
+  async function toggleConversationFlag(item: ChatItem, flag: "archived_at" | "pinned_at" | "favorite_at") {
+    if (!userId) return;
+    const currentValue = flag === "archived_at" ? item.archivedAt : flag === "pinned_at" ? item.pinnedAt : item.favoriteAt;
+    const nextValue = currentValue ? null : new Date().toISOString();
+    const update = flag === "archived_at" ? { archived_at: nextValue } : flag === "pinned_at" ? { pinned_at: nextValue } : { favorite_at: nextValue };
+    const { error } = await supabase.from("conversation_members").update(update)
+      .eq("conversation_id", item.id).eq("user_id", userId).is("left_at", null);
+    if (error) { setLoadError(error.message); setMenuConversationId(null); return; }
+    setItems((current) => current.map((entry) => entry.id !== item.id ? entry : {
+      ...entry,
+      archivedAt: flag === "archived_at" ? nextValue : entry.archivedAt,
+      pinnedAt: flag === "pinned_at" ? nextValue : entry.pinnedAt,
+      favoriteAt: flag === "favorite_at" ? nextValue : entry.favoriteAt,
+    }).sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || (b.lastAt || "").localeCompare(a.lastAt || "")));
+    setMenuConversationId(null);
+  }
+
+  async function markUnread(item: ChatItem) {
+    if (!userId) return;
+    const unreadAt = new Date().toISOString();
+    const { error } = await supabase.from("conversation_members").update({ unread_at: unreadAt })
+      .eq("conversation_id", item.id).eq("user_id", userId).is("left_at", null);
+    if (error) { setLoadError(error.message); setMenuConversationId(null); return; }
+    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, unread: Math.max(entry.unread, 1) } : entry));
+    setMenuConversationId(null);
+  }
+
   async function handleConversationAction(item: ChatItem) {
     if (!userId) return;
     const isGroup = item.type === "group";
@@ -245,7 +278,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
 
   const filtered = items.filter((item) => {
     const matchesTerm = `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"));
-    const matchesFilter = filter === "all" || (filter === "unread" && item.unread > 0) || (filter === "groups" && item.type === "group");
+    const matchesFilter = filter === "all" ? !item.archivedAt : filter === "archived" ? Boolean(item.archivedAt) : (filter === "unread" && item.unread > 0) || (filter === "favorites" && Boolean(item.favoriteAt)) || (filter === "groups" && item.type === "group");
     return matchesTerm && matchesFilter;
   });
 
@@ -261,9 +294,10 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
           <label className="search-field chat-search-field"><Search size={19} className="shrink-0 text-slate-400" /><input id="chat-search-input" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ara" aria-label="Kişi veya sohbet ara" /></label>
         </div>
         <div className="chat-filter-row flex shrink-0 items-center gap-2 overflow-x-auto px-5 pb-4" aria-label="Sohbet filtreleri">
-          {([["all", "Tümü"], ["favorites", "Favoriler"], ["unread", "Okunmamış"], ["groups", "Gruplar"]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`chat-filter-pill ${filter === key ? "chat-filter-pill-active" : ""}`}>{label}</button>)}
+          {([["all", "Tümü"], ["favorites", "Favoriler"], ["unread", "Okunmamış"], ["groups", "Gruplar"], ["archived", "Arşiv"]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`chat-filter-pill ${filter === key ? "chat-filter-pill-active" : ""}`}>{label}</button>)}
         </div>
         <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Sohbet listesi">
+          {loadError && <p role="alert" className="mx-4 mb-3 rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-xs text-rose-200">{loadError}</p>}
           {term.trim().length >= 2 && <section className="inline-people-results" aria-label="Kişi arama sonuçları">
             <p className="inline-people-heading">KİŞİLER {inlineSearchLoading ? "· aranıyor" : ""}</p>
             {inlinePeople.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
@@ -286,7 +320,12 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
                 className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-lg p-2 text-slate-400 opacity-70 transition hover:bg-slate-700 hover:text-white group-hover:opacity-100">
                 <MoreVertical size={17} />
               </button>
-              {menuConversationId === item.id && <div className="absolute right-3 top-[calc(100%-8px)] z-30 min-w-44 rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-xl">
+              {menuConversationId === item.id && <div className="absolute right-3 top-[calc(100%-8px)] z-30 min-w-52 rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-xl">
+                <button type="button" onClick={() => void toggleConversationFlag(item, "pinned_at")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"><Pin size={14} />{item.pinnedAt ? "Sabitlemeyi kaldır" : "Sohbeti sabitle"}</button>
+                <button type="button" onClick={() => void toggleConversationFlag(item, "favorite_at")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"><Star size={14} />{item.favoriteAt ? "Favorilerden çıkar" : "Favorilere ekle"}</button>
+                <button type="button" onClick={() => void toggleConversationFlag(item, "archived_at")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"><Archive size={14} />{item.archivedAt ? "Arşivden çıkar" : "Arşivle"}</button>
+                <button type="button" onClick={() => void markUnread(item)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"><Bell size={14} />Okunmadı olarak işaretle</button>
+                <div className="my-1 border-t border-slate-700" />
                 <button type="button" onClick={() => void handleConversationAction(item)}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-300 transition hover:bg-slate-800">
                   {item.type === "group" ? <LogOut size={15} /> : <Trash2 size={15} />}
