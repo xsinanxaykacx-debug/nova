@@ -94,9 +94,9 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
               <div className="profile-detail-row"><span>Görünen ad</span><strong>{profile.display_name || "—"}</strong></div>
               <div className="profile-detail-row"><span>E-posta</span><strong>{user?.email || "—"}</strong></div>
               {notice && <p role="status" className="profile-panel-notice">{notice}</p>}
-              <button type="button" onClick={() => setEditing(true)} className="profile-panel-save"><Pencil size={17} />Profili Düzenle</button>
+              <button type="button" onClick={() => setEditing(true)} className="profile-panel-edit-text">Profili Düzenle</button>
             </div>}
-            <button type="button" onClick={() => void signOut()} className="profile-panel-logout"><LogOut size={18} />Çıkış Yap</button>
+            <button type="button" onClick={() => void signOut()} className="profile-panel-logout">Çıkış Yap</button>
           </div>
         </aside>
       </div>}
