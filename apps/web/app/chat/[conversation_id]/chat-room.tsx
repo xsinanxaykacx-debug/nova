@@ -65,8 +65,6 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-const EMPTY_GROUP_KEY_EPOCHS: { key_version: number; encrypted_group_key: string; key_sender_public_key: string | null }[] = [];
-
 function decodeLegacyBase64Message(value: string): string {
   if (!value || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
     throw new Error("Eski mesajın biçimi tanınmıyor; içerik değiştirilmeden korundu.");
