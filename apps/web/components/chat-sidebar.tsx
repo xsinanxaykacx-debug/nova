@@ -184,7 +184,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       {newChatOpen && <div className="new-chat-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewChatOpen(false); }}>
         <section className="new-chat-modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title">
           <header className="new-chat-modal-header"><div className="flex items-center gap-3"><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><ArrowLeft size={20} /></button><h2 id="new-chat-title">Yeni sohbet</h2></div><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={19} /></button></header>
-          <form onSubmit={searchPeople} className="new-chat-search"><Search size={19} /><input autoFocus value={personTerm} onChange={(event) => setPersonTerm(event.target.value)} placeholder="İsim veya kullanıcı adı ara" aria-label="Kişi ara" /><button type="submit" disabled={peopleLoading}>{peopleLoading ? "..." : "Ara"}</button></form>
+          <form onSubmit={searchPeople} className="new-chat-search"><Search size={19} /><input autoFocus value={personTerm} onChange={(event) => setPersonTerm(event.target.value)} placeholder="İsim veya kullanıcı adı ara" aria-label="Kişi ara" /></form>
           <div className="new-chat-results">
             {!peopleSearched && <div className="new-chat-hint"><UserRound size={30} /><p>Yeni bir sohbet başlatmak için kişi ara.</p></div>}
             {people.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
