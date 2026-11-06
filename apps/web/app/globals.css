@@ -1413,3 +1413,280 @@ button:hover, button:focus, button:focus-visible,
   order: 1 !important;
   margin-top: auto !important;
 }
+
+
+/* NOVA yeni görsel sistem — 60/30/10
+   %60 açık çalışma alanı, %30 koyu gezinme panelleri, %10 sakin yeşil vurgu */
+:root {
+  --nova-canvas: #F4F6F8;
+  --nova-surface: #FFFFFF;
+  --nova-surface-soft: #E9EEF2;
+  --nova-sidebar: #202B3A;
+  --nova-sidebar-deep: #172231;
+  --nova-sidebar-hover: #2C394A;
+  --nova-line: #D9E0E7;
+  --nova-text: #202B36;
+  --nova-muted: #687586;
+  --nova-accent: #4C8C82;
+  --nova-accent-hover: #3F796F;
+  --nova-accent-soft: #E3EFEC;
+}
+
+/* Ana çalışma alanı: açık, ferah ve yüksek okunabilirlik */
+html, body, body > div, .chat-app-shell,
+.chat-room-panel, .chat-wallpaper, .calls-detail-panel {
+  background: var(--nova-canvas) !important;
+  color: var(--nova-text) !important;
+}
+.chat-room-panel, .chat-wallpaper, .calls-detail-panel {
+  background: var(--nova-canvas) !important;
+}
+.chat-room-header, .chat-composer {
+  background: var(--nova-surface-soft) !important;
+  border-color: var(--nova-line) !important;
+}
+.chat-room-header h1, .chat-room-header h2,
+.chat-room-header p, .chat-room-header span,
+.calls-detail-panel h2 {
+  color: var(--nova-text) !important;
+}
+
+/* %30: sol gezinme ve sohbet listesi */
+.navigation-rail {
+  background: var(--nova-sidebar-deep) !important;
+  border-color: #2D3948 !important;
+}
+.chat-sidebar, .calls-sidebar {
+  background: var(--nova-sidebar) !important;
+  border-color: #354253 !important;
+}
+.chat-list-heading, .calls-heading {
+  background: var(--nova-sidebar) !important;
+  border-color: #354253 !important;
+}
+.chat-list-heading h1, .calls-heading h1 {
+  color: #F1F4F7 !important;
+}
+.navigation-rail .rail-link {
+  color: #B8C2CE !important;
+}
+.navigation-rail .rail-link-active,
+.navigation-rail .rail-link:hover {
+  color: #FFFFFF !important;
+  background: var(--nova-sidebar-hover) !important;
+}
+.navigation-rail .rail-link-active {
+  border-color: transparent !important;
+}
+.chat-list-item, .chat-list-item-active {
+  border-radius: 10px !important;
+}
+.chat-list-item:hover {
+  background: var(--nova-sidebar-hover) !important;
+}
+.chat-list-item-active, .call-history-row-selected {
+  background: #344456 !important;
+}
+.chat-list-item strong, .call-person strong {
+  color: #F1F4F7 !important;
+}
+.chat-list-copy p, .chat-list-item time,
+.call-person small, .call-person time {
+  color: #B7C1CD !important;
+}
+.chat-list-item time {
+  color: #B7C1CD !important;
+}
+.chat-list-item .text-slate-400,
+.chat-list-item .text-slate-500 {
+  color: #AAB5C2 !important;
+}
+
+/* Arama alanları ve filtreler */
+.chat-search-field {
+  background: #172231 !important;
+  border: 1px solid #465365 !important;
+  border-radius: 10px !important;
+}
+.chat-search-field input {
+  color: #F1F4F7 !important;
+}
+.chat-search-field input::placeholder {
+  color: #AAB5C2 !important;
+}
+.chat-search-field svg, .chat-search-field > span {
+  color: #AAB5C2 !important;
+}
+.chat-filter-pill {
+  color: #D0D7DF !important;
+  background: transparent !important;
+  border: 1px solid #526071 !important;
+  border-radius: 999px !important;
+}
+.chat-filter-pill-active {
+  color: #FFFFFF !important;
+  background: var(--nova-accent) !important;
+  border-color: var(--nova-accent) !important;
+}
+
+/* %10 vurgu: yalnızca önemli eylemler ve aktif durumlar */
+.chat-new-button, .call-heading-action {
+  color: #BFC9D4 !important;
+}
+.chat-new-button:hover, .call-heading-action:hover {
+  color: #FFFFFF !important;
+  background: var(--nova-sidebar-hover) !important;
+}
+.send-button {
+  color: #FFFFFF !important;
+  background: var(--nova-accent) !important;
+  border: 0 !important;
+}
+.send-button:hover {
+  background: var(--nova-accent-hover) !important;
+}
+button svg, [role="button"] svg,
+.composer-icon-button svg, .chat-new-button svg,
+.call-heading-action svg {
+  color: inherit !important;
+}
+.unread-badge {
+  color: #FFFFFF !important;
+  background: var(--nova-accent) !important;
+}
+.chat-list-item-active {
+  box-shadow: inset 3px 0 0 var(--nova-accent) !important;
+}
+.chat-list-item-active time,
+.new-chat-action, .profile-panel-notice {
+  color: #8FC2B8 !important;
+}
+.conversation-status-dot.is-live {
+  background: #70A99E !important;
+}
+
+/* Mesajlar: yumuşak yüzeyler, net metin */
+.message-bubble-incoming, .message-bubble-incoming * {
+  color: #263341 !important;
+}
+.message-bubble-incoming {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E7EC !important;
+  border-radius: 14px !important;
+}
+.message-bubble-outgoing, .message-bubble-outgoing * {
+  color: #24332F !important;
+}
+.message-bubble-outgoing {
+  background: var(--nova-accent-soft) !important;
+  border: 1px solid #D3E4DF !important;
+  border-radius: 14px !important;
+}
+.message-bubble-incoming time, .message-bubble-outgoing time {
+  color: #718092 !important;
+}
+.chat-message-input {
+  color: var(--nova-text) !important;
+  background: #FFFFFF !important;
+  border: 1px solid #D4DCE4 !important;
+  border-radius: 12px !important;
+}
+.chat-message-input::placeholder {
+  color: #84909D !important;
+}
+.composer-icon-button {
+  color: var(--nova-muted) !important;
+  background: transparent !important;
+}
+
+/* Arama ayrıntıları ve boş durumlar */
+.calls-detail-panel {
+  color: var(--nova-text) !important;
+}
+.calls-detail-panel .text-slate-700,
+.calls-detail-panel .text-slate-900 {
+  color: var(--nova-text) !important;
+}
+.call-history-row {
+  border-color: #354253 !important;
+}
+.call-select span {
+  border-color: #8190A1 !important;
+  color: #FFFFFF !important;
+}
+.call-avatar {
+  color: #DCE4EB !important;
+  background: #344456 !important;
+}
+
+/* Pencereler: beyaz yüzey, sade kenarlık */
+.new-chat-modal, .peer-profile-modal, .profile-side-panel {
+  color: var(--nova-text) !important;
+  background: #FFFFFF !important;
+  border: 1px solid var(--nova-line) !important;
+}
+.new-chat-modal *, .peer-profile-modal *, .profile-side-panel * {
+  border-color: var(--nova-line);
+}
+.new-chat-modal h2, .peer-profile-modal h2,
+.peer-profile-modal h3, .profile-side-panel h2,
+.profile-side-panel h3 {
+  color: var(--nova-text) !important;
+}
+.new-chat-modal p, .peer-profile-modal p,
+.profile-side-panel p, .profile-detail-row span {
+  color: var(--nova-muted) !important;
+}
+.new-chat-modal input, .peer-profile-modal input,
+.profile-side-panel input {
+  color: var(--nova-text) !important;
+  background: #F7F9FA !important;
+  border: 1px solid var(--nova-line) !important;
+}
+.new-chat-modal button[type="submit"], .profile-panel-save {
+  color: #FFFFFF !important;
+  background: var(--nova-accent) !important;
+  border-color: var(--nova-accent) !important;
+}
+.profile-panel-logout {
+  color: #526071 !important;
+  background: #F4F6F8 !important;
+  border-color: var(--nova-line) !important;
+}
+.avatar-ring, .conversation-profile-avatar,
+.peer-profile-avatar, .profile-panel-avatar {
+  border-color: #B8D2CC !important;
+  background: #EAF2F0 !important;
+  color: #355E56 !important;
+}
+
+/* Mobil menü aynı renk dengesini korur */
+.mobile-bottom-nav {
+  background: var(--nova-sidebar-deep) !important;
+  border-color: #354253 !important;
+}
+.mobile-nav-link {
+  color: #B8C2CE !important;
+}
+.mobile-nav-active {
+  color: #FFFFFF !important;
+  background: var(--nova-sidebar-hover) !important;
+  border-color: transparent !important;
+}
+.mobile-nav-active svg {
+  color: #8FC2B8 !important;
+}
+
+/* Sade etkileşimler: parıltı, neon ve ağır gölge yok */
+*, *::before, *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+button, a, input, textarea {
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+button:focus-visible, a:focus-visible,
+input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #78A99F !important;
+  outline-offset: 2px !important;
+}
