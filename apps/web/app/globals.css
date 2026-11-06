@@ -1892,3 +1892,34 @@ input:focus-visible, textarea:focus-visible {
 .chat-room-header .nova-header-action:hover:not(:disabled) svg {
   color: #17243A !important;
 }
+
+
+/* Profil panelinde düzenle ve çıkış bağlantıları kart değil, sade metin olsun */
+.profile-panel-details .profile-panel-edit-text,
+.profile-panel-content > .profile-panel-logout {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: auto !important;
+  min-height: 0 !important;
+  padding: 8px 0 !important;
+  margin-top: 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: #526071 !important;
+  font: inherit !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+.profile-panel-details .profile-panel-edit-text:hover,
+.profile-panel-content > .profile-panel-logout:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #202B3A !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+}
