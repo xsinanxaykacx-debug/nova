@@ -186,6 +186,10 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
         size: blob.size, data: await blobToBase64(blob),
       };
       const ciphertext = await encrypt(JSON.stringify(payload), sharedKey, conversationId);
+      // Fail closed: never persist media unless encryption returned a NOVA1 envelope.
+      if (!ciphertext.startsWith("NOVA1:")) {
+        throw new Error("Medya E2EE zarfı doğrulanamadı; gönderim durduruldu.");
+      }
       const { data, error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId, sender_id: currentUserId, ciphertext,
         sender_device_id: currentUserId, type,
