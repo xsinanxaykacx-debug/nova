@@ -42,6 +42,8 @@ type ChatRoomProps = {
   initialMessages: Message[];
 };
 
+const EMPTY_GROUP_KEY_EPOCHS: NonNullable<ChatRoomProps['groupKeyEpochs']> = [];
+
 function mergeMessages(current: Message[], incoming: Message[]) {
   const byId = new Map<string, Message>();
   for (const message of current) byId.set(message.id, message);
@@ -56,7 +58,7 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = [], groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
