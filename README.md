@@ -88,6 +88,11 @@ Apply the migrations in `supabase/migrations/` to the NOVA Supabase project in f
 ## Security audit notes
 - RLS audit (2026-11-06): All auth.uid() references in existing RLS policies already use (SELECT auth.uid()) for initPlan caching. Required query and foreign-key indexes were verified present in the live database. No new migration was required.
 
+## CI
+GitHub Actions runs on every push to main and every pull request.
+Checks: pnpm typecheck, pnpm build, pnpm lint.
+Node 22 + pnpm 9.15.9, matching .nvmrc and packageManager.
+
 ## Current limitations
 - Private E2EE keys are browser-local. Clearing site data or switching browsers/devices without a transfer flow makes old messages unreadable.
 - Public-key fingerprint verification and secure multi-device key transfer are not implemented.
