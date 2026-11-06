@@ -192,15 +192,22 @@ export async function createGroupKey(): Promise<GeneratedGroupKey> {
   }
 }
 
+/** Derives a distinct wrapping context for each group-key epoch. Epoch 1 keeps the legacy context for existing groups. */
+function groupKeyEpochContext(conversationId: string, keyVersion: number): string {
+  if (!Number.isSafeInteger(keyVersion) || keyVersion < 1) throw new Error("Grup anahtar sürümü geçersiz.");
+  return keyVersion === 1 ? conversationId : conversationId + ":group-key-epoch:" + keyVersion;
+}
+
 /** Wraps a group key for one member using the creator/member ECDH shared secret. */
 export async function wrapGroupKey(
   rawKeyHex: string,
   senderPrivateKey: CryptoKey,
   recipientPublicKeyHex: string,
   conversationId: string,
+  keyVersion = 1,
 ): Promise<string> {
   if (hexToBytes(rawKeyHex).length !== 32) throw new Error("Grup anahtarı geçersiz.");
-  const wrappingKey = await deriveConversationKey(senderPrivateKey, recipientPublicKeyHex, conversationId);
+  const wrappingKey = await deriveConversationKey(senderPrivateKey, recipientPublicKeyHex, groupKeyEpochContext(conversationId, keyVersion));
   return encrypt(rawKeyHex, wrappingKey, conversationId);
 }
 
@@ -210,8 +217,9 @@ export async function unwrapGroupKey(
   recipientPrivateKey: CryptoKey,
   senderPublicKeyHex: string,
   conversationId: string,
+  keyVersion = 1,
 ): Promise<CryptoKey> {
-  const wrappingKey = await deriveConversationKey(recipientPrivateKey, senderPublicKeyHex, conversationId);
+  const wrappingKey = await deriveConversationKey(recipientPrivateKey, senderPublicKeyHex, groupKeyEpochContext(conversationId, keyVersion));
   const rawKeyHex = await decrypt(envelope, wrappingKey, conversationId);
   const raw = hexToBytes(rawKeyHex);
   if (raw.length !== 32) throw new Error("Çözülen grup anahtarının uzunluğu geçersiz.");
