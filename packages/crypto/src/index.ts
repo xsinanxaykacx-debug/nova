@@ -4,7 +4,7 @@ const DATABASE_NAME = "nova-e2ee";
 const DATABASE_VERSION = 1;
 const KEY_STORE = "identities";
 const KEY_PREFIX = "nova-e2ee-v1";
-const CANONICAL_E2EE_KEY_ORIGIN = "https://nova-chat-goezcue.vercel.app";
+const LOCAL_DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const identityPromises = new Map<string, Promise<LocalIdentity>>();
 
 export interface LocalIdentity {
@@ -136,9 +136,9 @@ async function createIdentity(): Promise<LocalIdentity> {
 /** Restores a browser-local ECDH identity without silently replacing a key already published by this account. */
 export function getOrCreateIdentity(userId: string, expectedPublicKey?: string | null): Promise<LocalIdentity> {
   const expected = expectedPublicKey?.toLowerCase() ?? null;
-  if (!expected && typeof window !== "undefined" && window.location.origin !== CANONICAL_E2EE_KEY_ORIGIN) {
+  if (!expected && typeof window !== "undefined" && LOCAL_DEVELOPMENT_HOSTS.has(window.location.hostname)) {
     return Promise.reject(new Error(
-      "Bu önizleme adresi üretim Supabase veritabanını kullanıyor. Güvenlik nedeniyle burada yeni E2EE anahtarı kaydedilmez; üretim NOVA adresini kullanın veya ayrı bir test veritabanı tanımlayın.",
+      "Yerel gelistirme adresinde yeni E2EE anahtar kaydi kapali. E2EE testleri icin Vercel Preview veya NOVA Production adresini kullanin.",
     ));
   }
   const existing = identityPromises.get(userId);

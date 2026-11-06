@@ -59,7 +59,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const markRead = useCallback((id: string) => {
-    if (!userId) return;
+    if (!userId || document.visibilityState !== "visible" || !document.hasFocus()) return;
     const lastReadAt = new Date().toISOString();
     void supabase.from("conversation_members").update({ unread_at: null, last_read_at: lastReadAt })
       .eq("conversation_id", id).eq("user_id", userId).is("left_at", null)
@@ -142,16 +142,17 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     const channel = supabase.channel("chat-list:" + userId).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
       if (!active) return;
       const message = payload.new as { conversation_id: string; sender_id: string; created_at: string };
-      const isActiveConversation = activeConversationId === message.conversation_id;
-      if (isActiveConversation && message.sender_id !== userId) markRead(message.conversation_id);
+      const isVisibleConversation = activeConversationId === message.conversation_id
+        && document.visibilityState === "visible" && document.hasFocus();
+      if (isVisibleConversation && message.sender_id !== userId) markRead(message.conversation_id);
       setItems((current) => current.map((item) => {
         if (item.id !== message.conversation_id) return item;
-        const isUnread = !isActiveConversation && message.sender_id !== userId
+        const isUnread = !isVisibleConversation && message.sender_id !== userId
           && (!item.lastReadAt || new Date(message.created_at).getTime() > new Date(item.lastReadAt).getTime());
         return {
           ...item,
           lastAt: message.created_at,
-          unread: isActiveConversation ? 0 : isUnread ? item.unread + 1 : item.unread,
+          unread: isVisibleConversation ? 0 : isUnread ? item.unread + 1 : item.unread,
         };
       }).sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || (b.lastAt || "").localeCompare(a.lastAt || "")));
     }).on("postgres_changes", {
