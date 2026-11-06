@@ -21,14 +21,23 @@ function LoginForm() {
       return;
     }
     setBusy(true);
-    const { error: signInError } = await createBrowserSupabaseClient().auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (signInError) {
-      setError(signInError.message);
-      return;
+    try {
+      const { error: signInError } = await createBrowserSupabaseClient().auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+      const requestedNext = searchParams.get("next");
+      const next = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\")
+        ? requestedNext
+        : "/profile";
+      router.replace(next);
+      router.refresh();
+    } catch (signInError) {
+      setError(signInError instanceof Error ? signInError.message : "Giriş sırasında bir hata oluştu.");
+    } finally {
+      setBusy(false);
     }
-    router.replace(searchParams.get("next") || "/profile");
-    router.refresh();
   }
 
   return (
