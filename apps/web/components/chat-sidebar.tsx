@@ -2,144 +2,200 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
-import { Search, MessageCircle, Settings, UserRound, Plus, MoreVertical, CheckCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Search, MessageCircle, MessageCirclePlus, Plus, CheckCheck, X, ArrowLeft, UserRound } from "lucide-react";
+import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type ChatItem = {
-  id: string;
-  peerId: string;
-  name: string;
-  username: string;
-  avatarUrl: string | null;
-  lastAt: string | null;
-  unread: number;
-};
+type ChatItem = { id: string; peerId: string; name: string; username: string; avatarUrl: string | null; lastAt: string | null; unread: number };
+type SearchProfile = { id: string; username: string; display_name: string; avatar_url?: string | null };
 
-function initials(name: string) {
-  return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
-}
-
+function initials(name: string) { return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "N"; }
 function timeLabel(value: string | null) {
   if (!value) return "";
-  const date = new Date(value);
-  const today = new Date();
+  const date = new Date(value); const today = new Date();
   if (date.toDateString() === today.toDateString()) return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
 }
 
 export function ChatSidebar({ activeConversationId }: { activeConversationId?: string }) {
   const { user } = useAuth();
-  const pathname = usePathname();
+  const userId = user?.id;
+  const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
   const [term, setTerm] = useState("");
-  const [displayName, setDisplayName] = useState("NOVA kullanıcısı");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [inlinePeople, setInlinePeople] = useState<SearchProfile[]>([]);
+  const [inlineSearchLoading, setInlineSearchLoading] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [personTerm, setPersonTerm] = useState("");
+  const [people, setPeople] = useState<SearchProfile[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleSearched, setPeopleSearched] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState("");
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const markRead = useCallback((id: string) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(`nova-chat-read:${id}`, new Date().toISOString());
-    }
+    if (typeof window !== "undefined") window.localStorage.setItem(`nova-chat-read:${id}`, new Date().toISOString());
     setItems((current) => current.map((item) => item.id === id ? { ...item, unread: 0 } : item));
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) { setItems([]); setLoading(false); return; }
     let active = true;
     async function loadChats() {
       setLoading(true);
-      const [{ data: ownProfile }, { data: memberships, error: membershipError }] = await Promise.all([
-        supabase.from("profiles").select("display_name, username, avatar_url").eq("id", user!.id).maybeSingle(),
-        supabase.from("conversation_members").select("conversation_id").eq("user_id", user!.id),
-      ]);
-      if (!active) return;
-      setDisplayName(ownProfile?.display_name || ownProfile?.username || "NOVA kullanıcısı");
-      setAvatarUrl(ownProfile?.avatar_url ?? null);
-      if (membershipError || !memberships?.length) {
+      setLoadError("");
+      try {
+        const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", userId);
+        if (membershipError) throw membershipError;
+        if (!memberships?.length) { if (active) setItems([]); return; }
+        const ids = memberships.map((entry) => entry.conversation_id);
+        const results = await Promise.all(ids.map(async (id) => {
+          const [{ data: members, error: membersError }, { data: messages, error: messagesError }] = await Promise.all([
+            supabase.from("conversation_members").select("user_id").eq("conversation_id", id).neq("user_id", userId),
+            supabase.from("messages").select("sender_id, created_at").eq("conversation_id", id).order("created_at", { ascending: false }).limit(100),
+          ]);
+          if (membersError) throw membersError;
+          if (messagesError) throw messagesError;
+          const peerId = members?.[0]?.user_id;
+          if (!peerId) return null;
+          const { data: peer, error: peerError } = await supabase.from("profiles").select("display_name, username, avatar_url").eq("id", peerId).maybeSingle();
+          if (peerError) throw peerError;
+          if (!peer) return null;
+          const lastAt = messages?.[0]?.created_at || null;
+          const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + id) : null;
+          const unread = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
+          return { id, peerId, name: peer.display_name || peer.username || "Kullan\u0131c\u0131", username: peer.username || "", avatarUrl: peer.avatar_url || null, lastAt, unread } satisfies ChatItem;
+        }));
+        if (!active) return;
+        setItems(results.filter((item): item is ChatItem => item !== null).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+      } catch (error) {
+        if (!active) return;
+        console.error("Chat list initial load failed:", error);
         setItems([]);
-        setLoading(false);
-        return;
-      }
-      const ids = memberships.map((entry) => entry.conversation_id);
-      const results = await Promise.all(ids.map(async (id) => {
-        const [{ data: members }, { data: messages }] = await Promise.all([
-          supabase.from("conversation_members").select("user_id").eq("conversation_id", id).neq("user_id", user!.id),
-          supabase.from("messages").select("sender_id, created_at").eq("conversation_id", id).order("created_at", { ascending: false }).limit(100),
-        ]);
-        const peerId = members?.[0]?.user_id;
-        if (!peerId) return null;
-        const { data: peer } = await supabase.from("profiles").select("display_name, username, avatar_url").eq("id", peerId).maybeSingle();
-        if (!peer) return null;
-        const lastAt = messages?.[0]?.created_at ?? null;
-        const lastRead = typeof window !== "undefined" ? window.localStorage.getItem(`nova-chat-read:${id}`) : null;
-        const unread = messages?.filter((message) => message.sender_id !== user!.id && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length ?? 0;
-        return { id, peerId, name: peer.display_name || peer.username || "Kullanıcı", username: peer.username || "", avatarUrl: peer.avatar_url ?? null, lastAt, unread } satisfies ChatItem;
-      }));
-      if (!active) return;
-      setItems(results.filter((item): item is ChatItem => item !== null).sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? "")));
-      setLoading(false);
+        setLoadError("Sohbetler y\u00FCklenemedi. Ba\u011Flant\u0131n\u0131 kontrol edip sayfay\u0131 yenile.");
+      } finally { if (active) setLoading(false); }
     }
     void loadChats();
     return () => { active = false; };
-  }, [supabase, user]);
+  }, [supabase, userId]);
 
   useEffect(() => {
-    if (activeConversationId) markRead(activeConversationId);
-  }, [activeConversationId, markRead]);
+    if (!userId) return;
+    let active = true;
+    const channel = supabase.channel("chat-list:" + userId).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+      if (!active) return;
+      const message = payload.new as { conversation_id: string; sender_id: string; created_at: string };
+      const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + message.conversation_id) : null;
+      setItems((current) => current.map((item) => {
+        if (item.id !== message.conversation_id) return item;
+        const isUnread = message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime());
+        return { ...item, lastAt: message.created_at, unread: isUnread ? item.unread + 1 : item.unread };
+      }).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+    }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [supabase, userId]);
 
-  const filtered = items.filter((item) => `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR")));
+  useEffect(() => { if (activeConversationId) markRead(activeConversationId); }, [activeConversationId, markRead]);
+
+  useEffect(() => {
+    if (!user || term.trim().length < 2) { setInlinePeople([]); setInlineSearchLoading(false); return; }
+    let active = true;
+    const timer = setTimeout(async () => {
+      setInlineSearchLoading(true);
+      const safeTerm = term.trim().replace(/[^a-zA-Z0-9_ğüşöçıİĞÜŞÖÇ .-]/g, "").replace(/\s+/g, " ");
+      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id)
+        .or(`username.ilike.%${safeTerm}%,display_name.ilike.%${safeTerm}%`).order("username", { ascending: true }).limit(8);
+      if (active) { setInlinePeople(data ?? []); setInlineSearchLoading(false); }
+    }, 280);
+    return () => { active = false; clearTimeout(timer); };
+  }, [supabase, term, user]);
+
+  async function searchPeople(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) return;
+    const safeTerm = personTerm.trim().replace(/[^a-zA-Z0-9_ğüşöçıİĞÜŞÖÇ .-]/g, "").replace(/\s+/g, " ");
+    if (safeTerm.length < 2) { setModalError("En az 2 karakter gir."); setPeople([]); return; }
+    setPeopleLoading(true); setModalError(""); setPeopleSearched(true);
+    const { data, error } = await supabase.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id)
+      .or(`username.ilike.%${safeTerm}%,display_name.ilike.%${safeTerm}%`).order("username", { ascending: true }).limit(30);
+    setPeopleLoading(false);
+    if (error) { setModalError("Kullanıcılar aranırken hata oluştu. Tekrar dene."); setPeople([]); return; }
+    setPeople(data || []);
+    if (!data?.length) setModalError("Bu aramayla eşleşen kullanıcı bulunamadı.");
+  }
+
+  async function startConversation(profile: SearchProfile) {
+    if (!user) return;
+    setOpeningId(profile.id); setModalError("");
+    const { data, error } = await supabase.rpc("create_direct_conversation", { target_user_id: profile.id });
+    setOpeningId(null);
+    if (error || !data) { setModalError("Sohbet oluşturulamadı. Biraz sonra tekrar dene."); return; }
+    setNewChatOpen(false); router.push(`/chat/${data}`);
+  }
+
+  const filtered = items.filter((item) => {
+    const matchesTerm = `${item.name} ${item.username}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"));
+    const matchesFilter = filter === "all" || (filter === "unread" && item.unread > 0);
+    return matchesTerm && matchesFilter;
+  });
 
   return (
-    <aside className={`chat-sidebar flex h-full min-h-0 w-full flex-col border-r border-slate-800/90 bg-[#0b1422] ${activeConversationId ? "hidden md:flex md:w-[340px] md:shrink-0" : "md:w-[360px] md:shrink-0"}`}>
-      <div className="flex items-center justify-between px-5 pb-4 pt-5">
-        <div className="flex items-center gap-3">
-          <div className="avatar-ring">
-            {avatarUrl ? <Image src={avatarUrl} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(displayName)}</span>}
+    <div className={`chat-sidebar-layout flex h-full w-full min-w-0 shrink-0 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
+      <NavigationRail showMobileNav={!activeConversationId} />
+      <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
+        <header className="chat-list-heading flex h-[68px] shrink-0 items-center justify-between px-5">
+          <h1 className="text-[19px] font-semibold text-slate-300">Sohbet</h1>
+          <button type="button" onClick={() => { setNewChatOpen(true); setPersonTerm(""); setPeople([]); setPeopleSearched(false); setModalError(""); }} aria-label="Yeni sohbet" title="Yeni sohbet" className="chat-new-button"><MessageCirclePlus size={22} /></button>
+        </header>
+        <div className="chat-search-wrap shrink-0 px-5 pb-4">
+          <label className="search-field chat-search-field"><Search size={19} className="shrink-0 text-slate-400" /><input id="chat-search-input" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ara" aria-label="Kişi veya sohbet ara" /></label>
+        </div>
+        <div className="chat-filter-row flex shrink-0 items-center gap-2 overflow-x-auto px-5 pb-4" aria-label="Sohbet filtreleri">
+          {([["all", "Tümü"], ["favorites", "Favoriler"], ["unread", "Okunmamış"], ["groups", "Gruplar"]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key} className={`chat-filter-pill ${filter === key ? "chat-filter-pill-active" : ""}`}>{label}</button>)}
+        </div>
+        <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Sohbet listesi">
+          {term.trim().length >= 2 && <section className="inline-people-results" aria-label="Kişi arama sonuçları">
+            <p className="inline-people-heading">KİŞİLER {inlineSearchLoading ? "· aranıyor" : ""}</p>
+            {inlinePeople.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
+              <span className="avatar-ring">{person.avatar_url ? <Image src={person.avatar_url} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : initials(person.display_name || person.username)}</span>
+              <span className="min-w-0 flex-1 text-left"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
+              <span className="new-chat-action">{openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
+            </button>)}
+            {!inlineSearchLoading && inlinePeople.length === 0 && <p className="inline-people-empty">Eşleşen kişi bulunamadı.</p>}
+          </section>}
+          {loading ? <div className="px-6 py-8 text-sm text-slate-400">Sohbetler yükleniyor...</div> : filtered.length ? filtered.map((item) => (
+            <Link key={item.id} href={`/chat/${item.id}`} onClick={() => markRead(item.id)} className={`chat-list-item ${activeConversationId === item.id ? "chat-list-item-active" : ""}`}>
+              <div className="avatar-ring avatar-ring-large chat-list-avatar">{item.avatarUrl ? <Image src={item.avatarUrl} alt="" width={52} height={52} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(item.name)}</span>}</div>
+              <div className="chat-list-copy min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="truncate text-[16px] font-medium text-slate-100">{item.name}</p><time className={`shrink-0 text-[11px] ${item.unread ? "text-sky-400" : "text-slate-400"}`}>{timeLabel(item.lastAt)}</time></div>
+                <div className="mt-1.5 flex items-center justify-between gap-2"><p className="flex min-w-0 items-center gap-1.5 truncate text-[13px] text-slate-400"><CheckCheck size={14} className="shrink-0 text-slate-500" />{item.lastAt ? "Uçtan uca şifreli mesaj" : "Sohbet başladı"}</p>{item.unread > 0 && <span className="unread-badge">{item.unread > 99 ? "99+" : item.unread}</span>}</div>
+              </div>
+            </Link>
+          )) : <div className="px-6 py-12 text-center"><MessageCircle size={30} className="mx-auto mb-3 text-slate-500" /><p className="text-sm text-slate-300">{filter === "favorites" ? "Henüz favori sohbetin yok." : filter === "groups" ? "Grup sohbeti bulunmuyor." : filter === "unread" ? "Okunmamış sohbet yok." : term ? "Eşleşen sohbet yok." : "Henüz sohbetin yok."}</p>{filter === "all" && <button type="button" onClick={() => setNewChatOpen(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-sky-400 hover:text-sky-300"><Plus size={16} /> Yeni sohbet başlat</button>}</div>}
+        </nav>
+      </aside>
+
+      {newChatOpen && <div className="new-chat-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewChatOpen(false); }}>
+        <section className="new-chat-modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title">
+          <header className="new-chat-modal-header"><div className="flex items-center gap-3"><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><ArrowLeft size={20} /></button><h2 id="new-chat-title">Yeni sohbet</h2></div><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={19} /></button></header>
+          <form onSubmit={searchPeople} className="new-chat-search"><Search size={19} /><input autoFocus value={personTerm} onChange={(event) => setPersonTerm(event.target.value)} placeholder="İsim veya kullanıcı adı ara" aria-label="Kişi ara" /></form>
+          <div className="new-chat-results">
+            {!peopleSearched && <div className="new-chat-hint"><UserRound size={30} /><p>Yeni bir sohbet başlatmak için kişi ara.</p></div>}
+            {people.map((person) => <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={openingId !== null} className="new-chat-person">
+              <span className="avatar-ring">{person.avatar_url ? <Image src={person.avatar_url} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : initials(person.display_name || person.username)}</span>
+              <span className="min-w-0 flex-1 text-left"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
+              <span className="new-chat-action">{openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
+            </button>)}
+            {modalError && <p role="status" className="new-chat-error">{modalError}</p>}
           </div>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-100">{displayName}</p><p className="text-[11px] text-slate-500">Güvenli sohbet alanı</p></div>
-        </div>
-        <div className="flex items-center gap-1 text-slate-400">
-          <Link href="/search" aria-label="Yeni sohbet" title="Yeni sohbet" className="icon-button"><Plus size={19} /></Link>
-          <Link href="/profile" aria-label="Ayarlar ve profil" title="Ayarlar ve profil" className="icon-button"><Settings size={18} /></Link>
-          <button type="button" aria-label="Diğer seçenekler" className="icon-button"><MoreVertical size={18} /></button>
-        </div>
-      </div>
-      <div className="px-4 pb-4">
-        <label className="search-field">
-          <Search size={17} className="shrink-0 text-sky-400" />
-          <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Sohbetlerde ara" aria-label="Sohbetlerde ara" />
-        </label>
-      </div>
-      <div className="flex items-center justify-between px-5 pb-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mesajlar</span>
-        <span className="text-[11px] text-slate-600">{items.length} sohbet</span>
-      </div>
-      <nav className="min-h-0 flex-1 overflow-y-auto pb-3" aria-label="Sohbet listesi">
-        {loading ? <div className="px-5 py-8 text-sm text-slate-500">Sohbetler yükleniyor...</div> : filtered.length ? filtered.map((item) => (
-          <Link key={item.id} href={`/chat/${item.id}`} onClick={() => markRead(item.id)} className={`chat-list-item ${activeConversationId === item.id ? "chat-list-item-active" : ""}`}>
-            <div className="avatar-ring avatar-ring-large">{item.avatarUrl ? <Image src={item.avatarUrl} alt="" width={46} height={46} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(item.name)}</span>}</div>
-            <div className="min-w-0 flex-1 border-b border-slate-800/60 py-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-[14px] font-semibold text-slate-100">{item.name}</p>
-                <time className={`shrink-0 text-[10px] ${item.unread ? "text-sky-400" : "text-slate-500"}`}>{timeLabel(item.lastAt)}</time>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="flex min-w-0 items-center gap-1 truncate text-xs text-slate-500"><CheckCheck size={13} className="shrink-0 text-sky-500" />{item.lastAt ? "Uçtan uca şifreli mesaj" : "Sohbet başladı"}</p>
-                {item.unread > 0 && <span className="unread-badge">{item.unread > 99 ? "99+" : item.unread}</span>}
-              </div>
-            </div>
-          </Link>
-        )) : <div className="px-5 py-10 text-center"><MessageCircle size={25} className="mx-auto mb-3 text-slate-600" /><p className="text-sm text-slate-400">{term ? "Eşleşen sohbet yok." : "Henüz sohbetin yok."}</p><Link href="/search" className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-sky-400 hover:text-sky-300"><Plus size={14} /> Yeni sohbet başlat</Link></div>}
-      </nav>
-      <div className="mobile-bottom-nav grid grid-cols-3 border-t border-slate-800/80 px-3 py-2 md:hidden">
-        <Link href="/chat" className={`mobile-nav-link ${pathname.startsWith("/chat") ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbet</Link>
-        <Link href="/search" className="mobile-nav-link"><Search size={19} />Keşfet</Link>
-        <Link href="/profile" className="mobile-nav-link"><UserRound size={19} />Profil</Link>
-      </div>
-    </aside>
+        </section>
+      </div>}
+    </div>
   );
 }
