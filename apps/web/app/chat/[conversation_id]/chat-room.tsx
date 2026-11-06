@@ -117,11 +117,22 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
           "Yerel şifreleme anahtarı kontrolü",
         );
         if (!ownProfile?.public_key) {
-          const { error: publishError } = await withTimeout(
-            supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId),
+          const { data: publishedProfile, error: publishError } = await withTimeout(
+            supabase.from("profiles").update({ public_key: identity.publicKey })
+              .eq("id", currentUserId).is("public_key", null).select("public_key").maybeSingle(),
             "Hesap şifreleme anahtarının kaydı",
           );
           if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+          if (!publishedProfile?.public_key) {
+            const { data: latestProfile, error: latestProfileError } = await withTimeout(
+              supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+              "Hesap şifreleme anahtarı doğrulaması",
+            );
+            if (latestProfileError) throw new Error("Hesap şifreleme anahtarı doğrulanamadı: " + latestProfileError.message);
+            if (latestProfile?.public_key?.toLowerCase() !== identity.publicKey.toLowerCase()) {
+              throw new Error("Hesap anahtarı başka bir oturumda değiştirilmiş. Eski mesajları korumak için bu oturumda şifreleme durduruldu.");
+            }
+          }
         }
         let key: CryptoKey;
         let epochKeys: Record<number, CryptoKey> = {};
