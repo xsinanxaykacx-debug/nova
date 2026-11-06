@@ -1728,3 +1728,12 @@ input:focus-visible, textarea:focus-visible {
 .chat-composer .composer-send-trailing:disabled {
   cursor: default !important;
 }
+
+
+/* Seçili sohbet kartı: gölge yerine ince, açık çerçeve */
+.chat-sidebar .chat-list-item-active {
+  border: 1px solid #657487 !important;
+  background: #2C394A !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
