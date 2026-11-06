@@ -1,0 +1,225 @@
+"use client";
+
+const DATABASE_NAME = "nova-e2ee";
+const DATABASE_VERSION = 1;
+const KEY_STORE = "identities";
+const KEY_PREFIX = "nova-e2ee-v1";
+const identityPromises = new Map<string, Promise<LocalIdentity>>();
+
+export interface LocalIdentity {
+  publicKey: string;
+  privateKey: CryptoKey;
+}
+
+interface StoredIdentity {
+  publicKey: string;
+  privateKey: CryptoKey;
+}
+
+function requireWebCrypto(): SubtleCrypto {
+  if (!globalThis.crypto?.subtle) throw new Error("Bu tarayıcı güvenli Web Crypto API desteği sunmuyor.");
+  return globalThis.crypto.subtle;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
+function openKeyDatabase(): Promise<IDBDatabase> {
+  if (typeof indexedDB === "undefined") return Promise.reject(new Error("Bu tarayıcı IndexedDB desteği sunmuyor."));
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(KEY_STORE)) request.result.createObjectStore(KEY_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Anahtar veritabanı açılamadı."));
+    request.onblocked = () => reject(new Error("Anahtar veritabanı başka bir sekmede güncelleniyor."));
+  });
+}
+
+async function readStoredIdentity(userId: string): Promise<StoredIdentity | null> {
+  const database = await openKeyDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = database.transaction(KEY_STORE, "readonly").objectStore(KEY_STORE).get(userId);
+      request.onsuccess = () => resolve((request.result as StoredIdentity | undefined) ?? null);
+      request.onerror = () => reject(request.error ?? new Error("Yerel anahtar okunamadı."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+async function storeIdentity(userId: string, identity: StoredIdentity): Promise<void> {
+  const database = await openKeyDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(KEY_STORE, "readwrite");
+      transaction.objectStore(KEY_STORE).put(identity, userId);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Yerel anahtar kaydedilemedi."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Yerel anahtar kaydı iptal edildi."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(value: string): Uint8Array {
+  if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("Açık anahtar biçimi geçersiz.");
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+async function createIdentity(): Promise<LocalIdentity> {
+  const subtle = requireWebCrypto();
+  const generated = (await subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"],
+  )) as CryptoKeyPair;
+  const publicBytes = new Uint8Array(await subtle.exportKey("raw", generated.publicKey));
+  const privateBytes = new Uint8Array(await subtle.exportKey("pkcs8", generated.privateKey));
+  try {
+    const privateKey = await subtle.importKey(
+      "pkcs8", toArrayBuffer(privateBytes), { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"],
+    );
+    return { publicKey: bytesToHex(publicBytes), privateKey };
+  } finally {
+    privateBytes.fill(0);
+    publicBytes.fill(0);
+  }
+}
+
+/** Creates/restores a browser-local ECDH identity; the persisted private CryptoKey is non-extractable. */
+export function getOrCreateIdentity(userId: string): Promise<LocalIdentity> {
+  const existing = identityPromises.get(userId);
+  if (existing) return existing;
+  const pending = (async () => {
+    const stored = await readStoredIdentity(userId);
+    if (stored?.publicKey && stored.privateKey && stored.privateKey.extractable === false) return stored;
+    const identity = await createIdentity();
+    await storeIdentity(userId, identity);
+    return identity;
+  })();
+  identityPromises.set(userId, pending);
+  pending.catch(() => identityPromises.delete(userId));
+  return pending;
+}
+
+/** Derives the same conversation AES key on both devices using ECDH + HKDF-SHA-256. */
+export async function deriveConversationKey(
+  privateKey: CryptoKey,
+  peerPublicKeyHex: string,
+  conversationId: string,
+): Promise<CryptoKey> {
+  const subtle = requireWebCrypto();
+  const peerPublicKey = await subtle.importKey(
+    "raw", toArrayBuffer(hexToBytes(peerPublicKeyHex)), { name: "ECDH", namedCurve: "P-256" }, false, [],
+  );
+  const sharedBits = new Uint8Array(await subtle.deriveBits({ name: "ECDH", public: peerPublicKey }, privateKey, 256));
+  try {
+    const hkdfMaterial = await subtle.importKey("raw", toArrayBuffer(sharedBits), "HKDF", false, ["deriveKey"]);
+    return await subtle.deriveKey(
+      {
+        name: "HKDF", hash: "SHA-256",
+        salt: new TextEncoder().encode(conversationId),
+        info: new TextEncoder().encode(KEY_PREFIX),
+      },
+      hkdfMaterial,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  } finally {
+    sharedBits.fill(0);
+  }
+}
+
+/** AES-256-GCM envelope: NOVA1:<12-byte-IV-hex>:<ciphertext+tag-hex>. */
+export async function encrypt(plaintext: string, key: CryptoKey, conversationId: string): Promise<string> {
+  const subtle = requireWebCrypto();
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const additionalData = new TextEncoder().encode(`${KEY_PREFIX}:${conversationId}`);
+  const encrypted = await subtle.encrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv), additionalData, tagLength: 128 },
+    key,
+    new TextEncoder().encode(plaintext),
+  );
+  return `NOVA1:${bytesToHex(iv)}:${bytesToHex(new Uint8Array(encrypted))}`;
+}
+
+/** Decrypts and authenticates a NOVA1 AES-GCM envelope. */
+export async function decrypt(envelope: string, key: CryptoKey, conversationId: string): Promise<string> {
+  const parts = envelope.split(":");
+  if (parts.length !== 3 || parts[0] !== "NOVA1") throw new Error("Bu mesaj yeni E2EE biçiminde değil veya bozuk.");
+  const iv = hexToBytes(parts[1]);
+  const ciphertext = hexToBytes(parts[2]);
+  if (iv.length !== 12 || ciphertext.length < 16) throw new Error("Şifreli mesaj zarfı geçersiz.");
+  const additionalData = new TextEncoder().encode(`${KEY_PREFIX}:${conversationId}`);
+  const plaintext = await requireWebCrypto().decrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv), additionalData, tagLength: 128 },
+    key,
+    toArrayBuffer(ciphertext),
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+
+export interface GeneratedGroupKey {
+  key: CryptoKey;
+  rawKeyHex: string;
+}
+
+/** Creates a random AES-256 group key. Raw bytes are returned only for per-member wrapping. */
+export async function createGroupKey(): Promise<GeneratedGroupKey> {
+  const raw = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  try {
+    const key = await requireWebCrypto().importKey(
+      "raw", toArrayBuffer(raw), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"],
+    );
+    return { key, rawKeyHex: bytesToHex(raw) };
+  } finally {
+    raw.fill(0);
+  }
+}
+
+/** Wraps a group key for one member using the creator/member ECDH shared secret. */
+export async function wrapGroupKey(
+  rawKeyHex: string,
+  senderPrivateKey: CryptoKey,
+  recipientPublicKeyHex: string,
+  conversationId: string,
+): Promise<string> {
+  if (hexToBytes(rawKeyHex).length !== 32) throw new Error("Grup anahtarı geçersiz.");
+  const wrappingKey = await deriveConversationKey(senderPrivateKey, recipientPublicKeyHex, conversationId);
+  return encrypt(rawKeyHex, wrappingKey, conversationId);
+}
+
+/** Unwraps the member-specific group-key envelope and imports a non-extractable AES key. */
+export async function unwrapGroupKey(
+  envelope: string,
+  recipientPrivateKey: CryptoKey,
+  senderPublicKeyHex: string,
+  conversationId: string,
+): Promise<CryptoKey> {
+  const wrappingKey = await deriveConversationKey(recipientPrivateKey, senderPublicKeyHex, conversationId);
+  const rawKeyHex = await decrypt(envelope, wrappingKey, conversationId);
+  const raw = hexToBytes(rawKeyHex);
+  if (raw.length !== 32) throw new Error("Çözülen grup anahtarının uzunluğu geçersiz.");
+  try {
+    return await requireWebCrypto().importKey(
+      "raw", toArrayBuffer(raw), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"],
+    );
+  } finally {
+    raw.fill(0);
+  }
+}
