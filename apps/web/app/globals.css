@@ -1708,3 +1708,23 @@ input:focus-visible, textarea:focus-visible {
   color: #3F796F !important;
   background: #DCE8E5 !important;
 }
+
+/* Gönder düğmesi: uçak simgesi her durumda net görünsün */
+.chat-composer .composer-send-trailing,
+.chat-composer .composer-send-trailing:disabled {
+  background: #36796F !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
+  border: 1px solid #2F6D64 !important;
+}
+.chat-composer .composer-send-trailing svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+  opacity: 1 !important;
+}
+.chat-composer .composer-send-trailing:hover:not(:disabled) {
+  background: #2F6D64 !important;
+}
+.chat-composer .composer-send-trailing:disabled {
+  cursor: default !important;
+}
