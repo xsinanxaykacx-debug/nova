@@ -67,6 +67,16 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 const EMPTY_GROUP_KEY_EPOCHS: { key_version: number; encrypted_group_key: string; key_sender_public_key: string | null }[] = [];
 
+function decodeLegacyBase64Message(value: string): string {
+  if (!value || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+    throw new Error("Eski mesajın biçimi tanınmıyor; içerik değiştirilmeden korundu.");
+  }
+  const binary = atob(value);
+  if (btoa(binary) !== value) throw new Error("Eski mesajın Base64 doğrulaması başarısız.");
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 type GroupParticipant = { id: string; display_name: string; username: string; avatar_url: string | null };
 type ChatRoomProps = {
   conversationId: string;
@@ -102,6 +112,7 @@ function initials(name: string) {
 export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
+  const [legacyMessages, setLegacyMessages] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [connection, setConnection] = useState<"connecting" | "live" | "error">("connecting");
@@ -159,6 +170,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
         if (!active) return;
         decryptedIds.current.clear();
         setDecryptedMessages({});
+        setLegacyMessages({});
         setGroupKeys(epochKeys);
         setSharedKey(key);
         setCryptoReady(true);
@@ -186,8 +198,12 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
             setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj, gruba katılmandan önce gönderildi." }));
             continue;
           }
-          const plaintext = await decrypt(message.ciphertext, messageKey, conversationId);
+          const isLegacyMessage = !message.ciphertext.startsWith("NOVA1:");
+          const plaintext = isLegacyMessage
+            ? decodeLegacyBase64Message(message.ciphertext)
+            : await decrypt(message.ciphertext, messageKey, conversationId);
           setDecryptedMessages((current) => ({ ...current, [message.id]: plaintext }));
+          if (isLegacyMessage) setLegacyMessages((current) => ({ ...current, [message.id]: true }));
         } catch (decryptError) {
           console.warn("Unable to decrypt message:", message.id, decryptError);
           setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj çözülemedi. Eski şifreleme biçiminde olabilir veya anahtar doğrulanamadı." }));
@@ -534,6 +550,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
                 return <div key={message.id} className={`flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
                   {conversationType === "group" && !own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || sender?.username || "Üye")}</span>}</div>}
                   <article className={`message-bubble relative ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
+                    {legacyMessages[message.id] && <p className="mb-1 text-[10px] text-amber-300/80">Eski mesaj · E2EE öncesi biçim</p>}
                     {conversationType === "group" && <p className={`mb-1 text-[11px] font-semibold ${own ? "text-sky-100/80" : "text-slate-300"}`}>{own ? "Sen" : sender?.display_name || sender?.username || "Grup üyesi"}</p>}
                     {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">{error && !cryptoReady ? "Şifreleme başlatılamadı. Üstteki hata ayrıntısını kontrol et." : "Şifre çözülüyor..."}</p> : message.type === "text" ? (
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
