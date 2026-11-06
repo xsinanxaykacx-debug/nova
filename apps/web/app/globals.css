@@ -1843,3 +1843,27 @@ input:focus-visible, textarea:focus-visible {
   box-shadow: none !important;
   border: 0 !important;
 }
+
+
+/* Sohbet başlığındaki kişi kartı: açık zemin, koyu metin */
+.chat-room-header .conversation-profile-card {
+  background: #E9EEF2 !important;
+  border: 1px solid #D1D9E1 !important;
+  color: #202B36 !important;
+  box-shadow: none !important;
+}
+.chat-room-header .conversation-profile-card h1,
+.chat-room-header .conversation-profile-card p,
+.chat-room-header .conversation-profile-card .conversation-status {
+  color: #263341 !important;
+}
+.chat-room-header .conversation-profile-card .conversation-status-dot {
+  border-color: #8792A2 !important;
+}
+.chat-room-header .conversation-profile-card .conversation-status-dot.is-live {
+  background: #4C8C82 !important;
+}
+.chat-room-header .conversation-profile-card:hover {
+  background: #E2E8ED !important;
+  border-color: #B8C3CE !important;
+}
