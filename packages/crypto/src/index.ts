@@ -4,8 +4,7 @@ const DATABASE_NAME = "nova-e2ee";
 const DATABASE_VERSION = 1;
 const KEY_STORE = "identities";
 const KEY_PREFIX = "nova-e2ee-v1";
-const CANONICAL_E2EE_KEY_ORIGIN =
-  process.env.NEXT_PUBLIC_E2EE_KEY_ORIGIN ?? "https://nova-chat-goezcue.vercel.app";
+const CANONICAL_E2EE_KEY_ORIGIN = "https://nova-chat-goezcue.vercel.app";
 const identityPromises = new Map<string, Promise<LocalIdentity>>();
 
 export interface LocalIdentity {
