@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download, MoreVertical, Trash2, UserPlus, UserMinus, Search } from "lucide-react";
 import type { Message } from "@nova/types";
-import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity, unwrapGroupKey } from "@nova/crypto";
+import { createGroupKey, decrypt, deriveConversationKey, encrypt, getOrCreateIdentity, unwrapGroupKey, wrapGroupKey } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { ChatSidebar } from "@/components/chat-sidebar";
 
@@ -32,8 +33,10 @@ type ChatRoomProps = {
   peerName: string;
   peerUsername: string;
   peerAvatarUrl: string | null;
-  groupEncryptedKey?: string | null;
-  groupKeySenderPublicKey?: string | null;
+  groupKeyEpochs?: { key_version: number; encrypted_group_key: string; key_sender_public_key: string | null }[];
+  groupKeyVersion?: number;
+  groupRole?: "admin" | "member";
+  groupKeyRotationRequired?: boolean;
   groupMemberCount?: number;
   groupParticipants?: GroupParticipant[];
   initialMessages: Message[];
@@ -53,7 +56,7 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupEncryptedKey, groupKeySenderPublicKey, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = [], groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState("");
@@ -67,6 +70,13 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
   const decryptingIds = useRef(new Set<string>());
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(null);
+  const [groupKeys, setGroupKeys] = useState<Record<number, CryptoKey>>({});
+  const [groupMemberSearch, setGroupMemberSearch] = useState("");
+  const [groupSearchResults, setGroupSearchResults] = useState<{ id: string; username: string; display_name: string; public_key: string | null }[]>([]);
+  const [groupSearchLoading, setGroupSearchLoading] = useState(false);
+  const [groupChangeBusy, setGroupChangeBusy] = useState(false);
+  const rotationAttempted = useRef(false);
+  const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -83,6 +93,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     let active = true;
     setCryptoReady(false);
     setSharedKey(null);
+    setGroupKeys({});
 
     async function initializeEncryption() {
       try {
@@ -90,9 +101,16 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
         const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
         if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
         let key: CryptoKey;
+        let epochKeys: Record<number, CryptoKey> = {};
         if (conversationType === "group") {
-          if (!groupEncryptedKey || !groupKeySenderPublicKey) throw new Error("Bu grup için sana ait şifreli grup anahtarı bulunamadı.");
-          key = await unwrapGroupKey(groupEncryptedKey, identity.privateKey, groupKeySenderPublicKey, conversationId);
+          if (!groupKeyEpochs.length) throw new Error("Bu grup için sana ait şifreli anahtar geçmişi bulunamadı.");
+          const unwrapped = await Promise.all(groupKeyEpochs.map(async (epoch) => {
+            if (!epoch.key_sender_public_key) throw new Error("Grup anahtarının gönderen açık anahtarı bulunamadı.");
+            return [epoch.key_version, await unwrapGroupKey(epoch.encrypted_group_key, identity.privateKey, epoch.key_sender_public_key, conversationId)] as const;
+          }));
+          epochKeys = Object.fromEntries(unwrapped);
+          key = epochKeys[groupKeyVersion];
+          if (!key) throw new Error("Güncel grup anahtarı bulunamadı. Sohbeti yenile.");
         } else {
           if (!peerPublicKey) throw new Error("Karşı tarafın açık anahtarı henüz hazır değil. Diğer kullanıcının giriş yapmasını bekle veya sohbeti yenile.");
           key = await deriveConversationKey(identity.privateKey, peerPublicKey, conversationId);
@@ -100,6 +118,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
         if (!active) return;
         decryptedIds.current.clear();
         setDecryptedMessages({});
+        setGroupKeys(epochKeys);
         setSharedKey(key);
         setCryptoReady(true);
         setError("");
@@ -111,7 +130,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     }
     void initializeEncryption();
     return () => { active = false; };
-  }, [conversationId, conversationType, currentUserId, groupEncryptedKey, groupKeySenderPublicKey, peerPublicKey, supabase]);
+  }, [conversationId, conversationType, currentUserId, groupKeyEpochs, groupKeyVersion, peerPublicKey, supabase]);
 
   useEffect(() => {
     if (!sharedKey) return;
@@ -121,7 +140,12 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       for (const message of pending) {
         decryptingIds.current.add(message.id);
         try {
-          const plaintext = await decrypt(message.ciphertext, activeKey, conversationId);
+          const messageKey = conversationType === "group" ? groupKeys[message.group_key_version ?? 1] : activeKey;
+          if (!messageKey) {
+            setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj, gruba katılmandan önce gönderildi." }));
+            continue;
+          }
+          const plaintext = await decrypt(message.ciphertext, messageKey, conversationId);
           setDecryptedMessages((current) => ({ ...current, [message.id]: plaintext }));
         } catch (decryptError) {
           console.warn("Unable to decrypt message:", message.id, decryptError);
@@ -133,7 +157,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       }
     }
     void decryptPendingMessages();
-  }, [conversationId, messages, sharedKey]);
+  }, [conversationId, conversationType, groupKeys, messages, sharedKey]);
 
   useEffect(() => {
     let active = true;
@@ -148,7 +172,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       if (status === "SUBSCRIBED") {
         setConnection("live");
         const { data, error: historyError } = await supabase.from("messages")
-          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at")
+          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at, group_key_version")
           .eq("conversation_id", conversationId).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(100);
         if (!active) return;
         if (historyError) setError("Mesaj geçmişi yenilenemedi. Canlı bağlantı devam ediyor.");
@@ -163,6 +187,149 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, decryptedMessages]);
 
+  useEffect(() => {
+    if (conversationType !== "group") return;
+    const channel = supabase.channel(`group-rotation:${conversationId}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "conversations", filter: `id=eq.${conversationId}`,
+      }, (payload) => {
+        const updated = payload.new as { group_key_rotation_required?: boolean; group_key_version?: number };
+        if (updated.group_key_rotation_required || Number(updated.group_key_version) !== groupKeyVersion) router.refresh();
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [conversationId, conversationType, groupKeyVersion, router, supabase]);
+
+  useEffect(() => {
+    if (conversationType !== "group") return;
+    const channel = supabase.channel(`group-membership:${conversationId}:${currentUserId}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "conversation_members", filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const updated = payload.new as { user_id?: string; left_at?: string | null };
+        if (updated.user_id === currentUserId && updated.left_at) {
+          setSharedKey(null);
+          setGroupKeys({});
+          setCryptoReady(false);
+          router.push("/chat");
+        }
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [conversationId, conversationType, currentUserId, router, supabase]);
+
+  const rotateGroupKeyAfterLeave = useCallback(async () => {
+    if (conversationType !== "group" || groupRole !== "admin" || !groupKeyRotationRequired || groupChangeBusy) return;
+    setGroupChangeBusy(true);
+    setError("");
+    try {
+      const identity = await getOrCreateIdentity(currentUserId);
+      const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
+      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+      const { data: members, error: membersError } = await supabase.from("conversation_members")
+        .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
+      if (membersError || !members?.length) throw new Error("Anahtar yenilemesi için aktif üyeler bulunamadı.");
+      const memberIds = members.map((member) => member.user_id);
+      const { data: profiles, error: profilesError } = await supabase.from("profiles")
+        .select("id, public_key").in("id", memberIds);
+      if (profilesError || !profiles || profiles.length !== memberIds.length || profiles.some((profile) => !profile.public_key)) {
+        throw new Error("Tüm aktif üyelerin açık anahtarları hazır değil.");
+      }
+      const generated = await createGroupKey();
+      const encryptedKeys = await Promise.all(profiles.map(async (profile) => ({
+        user_id: profile.id,
+        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId),
+      })));
+      const { data, error: rotateError } = await supabase.rpc("rotate_group_key", {
+        p_conversation_id: conversationId,
+        p_new_version: groupKeyVersion + 1,
+        p_encrypted_keys: encryptedKeys,
+      });
+      if (rotateError || data !== groupKeyVersion + 1) throw new Error(rotateError?.message || "Grup anahtarı yenilenemedi.");
+      router.refresh();
+    } catch (rotationError) {
+      console.error("Post-departure group key rotation failed:", rotationError);
+      setError(rotationError instanceof Error ? rotationError.message : "Grup anahtarı yenilenemedi.");
+    } finally {
+      setGroupChangeBusy(false);
+    }
+  }, [conversationId, conversationType, currentUserId, groupChangeBusy, groupKeyRotationRequired, groupKeyVersion, groupRole, router, supabase]);
+
+  useEffect(() => {
+    if (!groupKeyRotationRequired) { rotationAttempted.current = false; return; }
+    if (groupRole !== "admin" || rotationAttempted.current) return;
+    rotationAttempted.current = true;
+    void rotateGroupKeyAfterLeave();
+  }, [groupKeyRotationRequired, groupRole, groupKeyVersion, rotateGroupKeyAfterLeave]);
+
+  async function searchGroupMembers(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const term = groupMemberSearch.trim().replace(/[^a-zA-Z0-9_ğüşöçıİĞÜŞÖÇ .-]/g, "").replace(/\\s+/g, " ");
+    if (term.length < 2) { setGroupSearchResults([]); return; }
+    setGroupSearchLoading(true);
+    const activeIds = groupParticipants.map((participant) => participant.id);
+    const { data, error: searchError } = await supabase.from("profiles")
+      .select("id, username, display_name, public_key")
+      .neq("id", currentUserId)
+      .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+      .order("username", { ascending: true }).limit(30);
+    setGroupSearchLoading(false);
+    if (searchError) { setError("Üye araması yapılamadı."); setGroupSearchResults([]); return; }
+    const activeSet = new Set(activeIds);
+    setGroupSearchResults(((data ?? []) as typeof groupSearchResults).filter((candidate) => !activeSet.has(candidate.id)));
+  }
+
+  async function changeGroupMembership(action: "add" | "remove", targetUserId: string) {
+    if (conversationType !== "group" || groupRole !== "admin" || groupChangeBusy) return;
+    if (!window.confirm(action === "add"
+      ? "Bu kullanıcıyı gruba eklemek ve yeni şifreleme anahtarı oluşturmak istiyor musun?"
+      : "Bu üyeyi gruptan çıkarmak ve yeni şifreleme anahtarı oluşturmak istiyor musun?")) return;
+    setGroupChangeBusy(true);
+    setError("");
+    try {
+      const identity = await getOrCreateIdentity(currentUserId);
+      const { error: publishError } = await supabase.from("profiles")
+        .update({ public_key: identity.publicKey }).eq("id", currentUserId);
+      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+
+      const { data: activeRows, error: membersError } = await supabase.from("conversation_members")
+        .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
+      if (membersError || !activeRows) throw new Error("Grup üyeleri okunamadı.");
+      const activeIds = activeRows.map((row) => row.user_id);
+      if (!activeIds.includes(currentUserId)) throw new Error("Grup üyeliğin artık etkin değil.");
+      if (action === "add" && activeIds.includes(targetUserId)) throw new Error("Bu kullanıcı zaten grupta.");
+      if (action === "remove" && !activeIds.includes(targetUserId)) throw new Error("Çıkarılacak üye grupta değil.");
+      const nextIds = action === "add" ? [...activeIds, targetUserId] : activeIds.filter((id) => id !== targetUserId);
+      const { data: profiles, error: profilesError } = await supabase.from("profiles")
+        .select("id, public_key").in("id", nextIds);
+      if (profilesError || !profiles || profiles.length !== nextIds.length || profiles.some((profile) => !profile.public_key)) {
+        throw new Error("Yeni anahtar tüm aktif üyeler için güvenli biçimde hazırlanamadı. Üyelerin E2EE anahtarlarını kontrol et.");
+      }
+      const generated = await createGroupKey();
+      const encryptedKeys = await Promise.all(profiles.map(async (profile) => ({
+        user_id: profile.id,
+        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId),
+      })));
+      const { data, error: rotationError } = await supabase.rpc("rotate_group_membership", {
+        p_conversation_id: conversationId,
+        p_action: action,
+        p_target_user_id: targetUserId,
+        p_new_version: groupKeyVersion + 1,
+        p_encrypted_keys: encryptedKeys,
+      });
+      if (rotationError || data !== groupKeyVersion + 1) {
+        throw new Error(rotationError?.message || "Grup anahtarı güvenli biçimde yenilenemedi.");
+      }
+      setGroupMemberSearch("");
+      setGroupSearchResults([]);
+      setProfileOpen(false);
+      router.refresh();
+    } catch (changeError) {
+      console.error("Secure group membership change failed:", changeError);
+      setError(changeError instanceof Error ? changeError.message : "Grup üyeliği değiştirilemedi.");
+    } finally {
+      setGroupChangeBusy(false);
+    }
+  }
+
   async function deleteMessage(message: Message) {
     if (message.sender_id !== currentUserId || message.deleted_at) return;
     if (!window.confirm("Bu mesajı silmek istiyor musun?")) return;
@@ -171,7 +338,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     const { data, error: deleteError } = await supabase.from("messages")
       .update({ deleted_at: deletedAt })
       .eq("id", message.id).eq("sender_id", currentUserId).is("deleted_at", null)
-      .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at")
+      .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at, group_key_version")
       .maybeSingle();
     if (deleteError || !data) {
       setError(deleteError?.message || "Mesaj silinemedi. Yalnızca kendi mesajlarını silebilirsin.");
@@ -185,14 +352,15 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     const text = draft.trim();
     if (!text || sending) return;
     if (text.length > 4000) { setError("Mesaj en fazla 4000 karakter olabilir."); return; }
-    if (!sharedKey || !cryptoReady) { setError("Uçtan uca şifreleme henüz hazır değil. Açık anahtar bağlantısını kontrol et."); return; }
+    if (!sharedKey || !cryptoReady || groupKeyRotationRequired) { setError("Uçtan uca şifreleme hazır değil veya grup anahtarı yenileniyor."); return; }
     setSending(true);
     setError("");
     try {
       const ciphertext = await encrypt(text, sharedKey, conversationId);
       const { data, error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId, sender_id: currentUserId, ciphertext, sender_device_id: currentUserId, type: "text",
-      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at").single();
+        group_key_version: conversationType === "group" ? groupKeyVersion : null,
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at, group_key_version").single();
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli mesaj veritabanına kaydedilemedi.");
       addMessages([data as Message]);
       setDraft("");
@@ -207,7 +375,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
   async function sendMediaBlob(blob: Blob, type: "audio" | "file", name: string) {
     if (!blob.size) throw new Error("Gönderilecek medya boş.");
     if (blob.size > MAX_MEDIA_BYTES) throw new Error("Bu sürümde ses veya dosya boyutu en fazla 300 KB olabilir.");
-    if (!sharedKey || !cryptoReady) throw new Error("Uçtan uca şifreleme henüz hazır değil.");
+    if (!sharedKey || !cryptoReady || groupKeyRotationRequired) throw new Error("Uçtan uca şifreleme hazır değil veya grup anahtarı yenileniyor.");
     setSending(true);
     setError("");
     try {
@@ -223,7 +391,8 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       const { data, error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId, sender_id: currentUserId, ciphertext,
         sender_device_id: currentUserId, type,
-      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at").single();
+        group_key_version: conversationType === "group" ? groupKeyVersion : null,
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at, group_key_version").single();
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli medya veritabanına kaydedilemedi.");
       addMessages([data as Message]);
     } finally { setSending(false); }
@@ -368,11 +537,11 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
           <textarea id="chat-message" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
           }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }}
-            rows={1} maxLength={4000} placeholder="" disabled={!cryptoReady}
+            rows={1} maxLength={4000} placeholder="" disabled={!cryptoReady || groupKeyRotationRequired}
             className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
-          <button type="button" disabled={!cryptoReady || sending} onClick={() => fileInputRef.current?.click()} aria-label="Dosya ekle" title="Dosya ekle" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
-          <button type="button" disabled={!cryptoReady || sending} onClick={() => void toggleRecording()} aria-label={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} title={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} className="composer-icon-button"><Mic size={21} /></button>
-          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /></button>
+          <button type="button" disabled={!cryptoReady || sending || groupKeyRotationRequired} onClick={() => fileInputRef.current?.click()} aria-label="Dosya ekle" title="Dosya ekle" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
+          <button type="button" disabled={!cryptoReady || sending || groupKeyRotationRequired} onClick={() => void toggleRecording()} aria-label={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} title={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} className="composer-icon-button"><Mic size={21} /></button>
+          <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady || groupKeyRotationRequired : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /></button>
         </form>
 
               {profileOpen && <div className="peer-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
@@ -382,7 +551,25 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
               <div className="avatar-ring avatar-ring-large peer-profile-avatar">{peerAvatarUrl ? <Image src={peerAvatarUrl} alt={peerName} width={88} height={88} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(peerName)}</span>}</div>
               <h3>{peerName}</h3><p className="peer-profile-username">{peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p>
               <div className="peer-profile-info-row"><span className={"conversation-status-dot " + (connection === "live" ? "is-live" : connection === "error" ? "is-error" : "")} /><span>{connection === "live" ? "\u00C7evrimi\u00E7i" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</span></div>
-              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>Uçtan uca şifreli</strong><p>Bu sohbetteki mesajlar yalnızca sen ve bu kişi tarafından okunabilir.</p></div></div>
+              <div className="peer-profile-encryption"><LockKeyhole size={18} /><div><strong>Uçtan uca şifreli</strong><p>Grup üyeliği değiştiğinde yeni anahtar oluşturulur. Yeni üyeler eski mesajların anahtarlarını alamaz.</p></div></div>
+              {conversationType === "group" && <section className="mt-5 w-full border-t border-slate-700 pt-4 text-left">
+                <div className="mb-3 flex items-center justify-between"><h4 className="text-sm font-semibold text-slate-100">Grup üyeleri ({groupParticipants.length})</h4>{groupRole === "admin" && <span className="text-xs text-sky-300">Yönetici</span>}</div>
+                {groupKeyRotationRequired && <div className="mb-3 rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-xs text-amber-200"><p>Bir üye ayrıldı. Güvenlik için yeni grup anahtarı hazırlanıyor; bu işlem tamamlanana kadar mesaj gönderimi durduruldu.</p>{groupRole === "admin" && <button type="button" disabled={groupChangeBusy} onClick={() => void rotateGroupKeyAfterLeave()} className="mt-2 rounded-lg bg-amber-700/30 px-3 py-2 font-medium disabled:opacity-50">{groupChangeBusy ? "Anahtar yenileniyor..." : "Anahtarı şimdi yenile"}</button>}</div>}
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {groupParticipants.map((participant) => <div key={participant.id} className="flex items-center gap-2 rounded-lg bg-slate-900/60 px-2 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{participant.id === currentUserId ? "Sen" : participant.display_name || participant.username}</span>
+                    {participant.id !== currentUserId && groupRole === "admin" && <button type="button" disabled={groupChangeBusy} onClick={() => void changeGroupMembership("remove", participant.id)} className="rounded-lg p-2 text-rose-300 hover:bg-rose-950/50" aria-label="Üyeyi gruptan çıkar" title="Üyeyi çıkar"><UserMinus size={16} /></button>}
+                  </div>)}
+                </div>
+                {groupRole === "admin" && <form onSubmit={searchGroupMembers} className="mt-4 space-y-2">
+                  <label className="text-xs font-medium text-slate-300" htmlFor="group-member-search">Yeni üye ekle</label>
+                  <div className="flex gap-2"><input id="group-member-search" value={groupMemberSearch} onChange={(event) => setGroupMemberSearch(event.target.value)} placeholder="Kullanıcı adı veya isim" className="chat-message-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm" /><button type="submit" disabled={groupSearchLoading || groupMemberSearch.trim().length < 2} className="new-chat-action px-3"><Search size={16} /></button></div>
+                  {groupSearchLoading && <p className="text-xs text-slate-400">Aranıyor...</p>}
+                  {groupSearchResults.map((candidate) => <div key={candidate.id} className="flex items-center gap-2 rounded-lg bg-slate-900/60 px-2 py-2"><span className="min-w-0 flex-1 truncate text-sm text-slate-200">{candidate.display_name || candidate.username} <span className="text-slate-500">@{candidate.username}</span></span><button type="button" disabled={groupChangeBusy || !candidate.public_key} onClick={() => void changeGroupMembership("add", candidate.id)} className="rounded-lg p-2 text-sky-300 hover:bg-sky-950/50" aria-label="Gruba üye ekle" title={candidate.public_key ? "Gruba ekle" : "E2EE anahtarı hazır değil"}><UserPlus size={16} /></button></div>)}
+                  {groupSearchResults.some((candidate) => !candidate.public_key) && <p className="text-xs text-amber-300">E2EE anahtarı hazır olmayan kullanıcılar eklenemez.</p>}
+                  {groupChangeBusy && <p className="text-xs text-sky-300">Yeni grup anahtarı hazırlanıyor...</p>}
+                </form>}
+              </section>}
             </div>
           </section>
         </div>}

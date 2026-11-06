@@ -28,6 +28,8 @@ export interface Conversation {
   avatar_url: string | null;
   created_at: ISODateString;
   updated_at: ISODateString;
+  group_key_version?: number;
+  group_key_rotation_required?: boolean;
 }
 
 export interface ConversationMember {
@@ -61,6 +63,10 @@ export interface ConversationKey {
   created_at: ISODateString;
 }
 
+export interface ConversationKeyEpoch extends ConversationKey {
+  key_version: number;
+}
+
 export interface ConversationParticipant {
   id: UUID;
   display_name: string;
@@ -77,4 +83,5 @@ export interface Message {
   type: "text" | "audio" | "file";
   created_at: ISODateString;
   deleted_at: ISODateString | null;
+  group_key_version?: number | null;
 }
