@@ -71,13 +71,28 @@ async function readStoredIdentity(userId: string): Promise<StoredIdentity | null
   }
 }
 
-async function storeIdentity(userId: string, identity: StoredIdentity): Promise<void> {
+async function storeIdentityIfAbsent(userId: string, identity: StoredIdentity): Promise<StoredIdentity> {
   const database = await openKeyDatabase();
   try {
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       const transaction = database.transaction(KEY_STORE, "readwrite");
-      transaction.objectStore(KEY_STORE).put(identity, userId);
-      transaction.oncomplete = () => resolve();
+      const store = transaction.objectStore(KEY_STORE);
+      let winningIdentity: StoredIdentity | null = null;
+      const request = store.get(userId);
+      request.onsuccess = () => {
+        const existing = request.result as StoredIdentity | undefined;
+        if (existing) {
+          winningIdentity = existing;
+          return;
+        }
+        winningIdentity = identity;
+        store.add(identity, userId);
+      };
+      request.onerror = () => reject(request.error ?? new Error("Yerel anahtar okunamadı."));
+      transaction.oncomplete = () => {
+        if (winningIdentity) resolve(winningIdentity);
+        else reject(new Error("Yerel anahtar kaydı tamamlanamadı."));
+      };
       transaction.onerror = () => reject(transaction.error ?? new Error("Yerel anahtar kaydedilemedi."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Yerel anahtar kaydı iptal edildi."));
     });
@@ -144,8 +159,7 @@ export function getOrCreateIdentity(userId: string, expectedPublicKey?: string |
       throw new Error("Bu hesap için sunucuda bir şifreleme anahtarı kayıtlı ancak bu tarayıcıda özel anahtar bulunamadı. Eski mesajları korumak için yeni anahtar oluşturulmadı.");
     }
     const identity = await createIdentity();
-    await storeIdentity(userId, identity);
-    return identity;
+    return await storeIdentityIfAbsent(userId, identity);
   })();
   identityPromises.set(userId, pending);
   pending.catch(() => identityPromises.delete(userId));
