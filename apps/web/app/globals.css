@@ -1737,3 +1737,89 @@ input:focus-visible, textarea:focus-visible {
   box-shadow: none !important;
   outline: none !important;
 }
+
+
+/* Yeni sohbet penceresi: yalnızca lacivert ve gri */
+.new-chat-overlay {
+  background: rgba(8, 15, 28, .82) !important;
+}
+.new-chat-modal {
+  background: #17243A !important;
+  background-color: #17243A !important;
+  color: #D5DAE2 !important;
+  border: 1px solid #687386 !important;
+  border-radius: 14px !important;
+}
+.new-chat-modal-header {
+  background: #17243A !important;
+  border-bottom: 1px solid #687386 !important;
+}
+.new-chat-modal-header h2,
+.new-chat-modal p,
+.new-chat-modal label,
+.new-chat-modal strong,
+.new-chat-modal small,
+.new-chat-modal svg {
+  color: #D5DAE2 !important;
+}
+.new-chat-modal .new-chat-close {
+  background: transparent !important;
+  color: #AEB7C4 !important;
+  border: 1px solid transparent !important;
+}
+.new-chat-modal .new-chat-close:hover {
+  background: #687386 !important;
+  color: #17243A !important;
+}
+.new-chat-modal .new-chat-search {
+  background: #687386 !important;
+  border: 1px solid #8792A2 !important;
+  border-radius: 9px !important;
+  color: #17243A !important;
+}
+.new-chat-modal .new-chat-search svg {
+  color: #17243A !important;
+}
+.new-chat-modal .new-chat-search input {
+  background: transparent !important;
+  color: #17243A !important;
+  border: 0 !important;
+}
+.new-chat-modal .new-chat-search input::placeholder {
+  color: #303D50 !important;
+  opacity: 1 !important;
+}
+.new-chat-modal .new-chat-search button {
+  background: #17243A !important;
+  color: #D5DAE2 !important;
+  border: 1px solid #8792A2 !important;
+  border-radius: 7px !important;
+}
+.new-chat-modal .new-chat-results {
+  background: #17243A !important;
+}
+.new-chat-modal .new-chat-hint {
+  color: #AEB7C4 !important;
+}
+.new-chat-modal .new-chat-person {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+}
+.new-chat-modal .new-chat-person:hover {
+  background: #687386 !important;
+  border-color: #8792A2 !important;
+}
+.new-chat-modal .new-chat-person strong,
+.new-chat-modal .new-chat-person small,
+.new-chat-modal .new-chat-action {
+  color: #D5DAE2 !important;
+}
+.new-chat-modal .avatar-ring {
+  background: #687386 !important;
+  color: #17243A !important;
+  border: 1px solid #8792A2 !important;
+}
+.new-chat-modal .new-chat-error {
+  color: #D5DAE2 !important;
+}
