@@ -1923,3 +1923,22 @@ input:focus-visible, textarea:focus-visible {
   text-decoration: underline !important;
   text-underline-offset: 3px !important;
 }
+
+
+/* Mesaj gönder uçak simgesi: birinci bölümün koyu arduvaz rengi */
+.chat-composer .composer-send-trailing,
+.chat-composer .composer-send-trailing:disabled {
+  background: #202B3A !important;
+  background-color: #202B3A !important;
+  border-color: #202B3A !important;
+  color: #FFFFFF !important;
+}
+.chat-composer .composer-send-trailing svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+.chat-composer .composer-send-trailing:hover:not(:disabled) {
+  background: #29384A !important;
+  background-color: #29384A !important;
+  border-color: #29384A !important;
+}
