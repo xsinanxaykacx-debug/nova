@@ -25,7 +25,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   const [{ data: peerProfile, error: peerError }, { data: history, error }] = await Promise.all([
     supabase.from("profiles").select("public_key, username, display_name, avatar_url").eq("id", peerIds[0]).maybeSingle(),
-    supabase.from("messages").select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at")
+    supabase.from("messages").select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at")
       .eq("conversation_id", params.conversation_id).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(100),
   ]);
   if (peerError) console.error("Unable to load peer profile:", peerError.message);
