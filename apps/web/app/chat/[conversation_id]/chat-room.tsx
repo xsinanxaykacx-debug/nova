@@ -10,6 +10,47 @@ import { createGroupKey, decrypt, deriveConversationKey, encrypt, getOrCreateIde
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { ChatSidebar } from "@/components/chat-sidebar";
 
+function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12_000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(label + " 12 saniye içinde yanıt vermedi. Bağlantıyı kontrol edip yeniden deneyin.")), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error: unknown) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
+async function getValidatedIdentity(currentUserId: string, supabase: ReturnType<typeof createBrowserSupabaseClient>) {
+  const { data: ownProfile, error: ownProfileError } = await withTimeout(
+    supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+    "Hesap şifreleme anahtarı sorgusu",
+  );
+  if (ownProfileError) throw new Error("Hesap şifreleme anahtarı okunamadı: " + ownProfileError.message);
+  const identity = await withTimeout(
+    getOrCreateIdentity(currentUserId, ownProfile?.public_key ?? null),
+    "Yerel şifreleme anahtarı kontrolü",
+  );
+  if (!ownProfile?.public_key) {
+    const { data: publishedProfile, error: publishError } = await withTimeout(
+      supabase.from("profiles").update({ public_key: identity.publicKey })
+        .eq("id", currentUserId).is("public_key", null).select("public_key").maybeSingle(),
+      "Hesap şifreleme anahtarının kaydı",
+    );
+    if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+    if (!publishedProfile?.public_key) {
+      const { data: latestProfile, error: latestProfileError } = await withTimeout(
+        supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+        "Hesap şifreleme anahtarı doğrulaması",
+      );
+      if (latestProfileError) throw new Error("Hesap şifreleme anahtarı doğrulanamadı: " + latestProfileError.message);
+      if (latestProfile?.public_key?.toLowerCase() !== identity.publicKey.toLowerCase()) {
+        throw new Error("Hesap anahtarı başka bir oturumda değiştirilmiş. Eski mesajları korumak için bu oturumda şifreleme durduruldu.");
+      }
+    }
+  }
+  return identity;
+}
+
 type EncryptedMediaPayload = { version: 1; name: string; mimeType: string; size: number; data: string };
 const MAX_MEDIA_BYTES = 300 * 1024;
 
@@ -22,6 +63,18 @@ function blobToBase64(blob: Blob): Promise<string> {
     }
     return btoa(binary);
   });
+}
+
+const EMPTY_GROUP_KEY_EPOCHS: { key_version: number; encrypted_group_key: string; key_sender_public_key: string | null }[] = [];
+
+function decodeLegacyBase64Message(value: string): string {
+  if (!value || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+    throw new Error("Eski mesajın biçimi tanınmıyor; içerik değiştirilmeden korundu.");
+  }
+  const binary = atob(value);
+  if (btoa(binary) !== value) throw new Error("Eski mesajın Base64 doğrulaması başarısız.");
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
 type GroupParticipant = { id: string; display_name: string; username: string; avatar_url: string | null };
@@ -56,9 +109,10 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = [], groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
+  const [legacyMessages, setLegacyMessages] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [connection, setConnection] = useState<"connecting" | "live" | "error">("connecting");
@@ -97,9 +151,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
 
     async function initializeEncryption() {
       try {
-        const identity = await getOrCreateIdentity(currentUserId);
-        const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
-        if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+        const identity = await getValidatedIdentity(currentUserId, supabase);
         let key: CryptoKey;
         let epochKeys: Record<number, CryptoKey> = {};
         if (conversationType === "group") {
@@ -118,6 +170,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
         if (!active) return;
         decryptedIds.current.clear();
         setDecryptedMessages({});
+        setLegacyMessages({});
         setGroupKeys(epochKeys);
         setSharedKey(key);
         setCryptoReady(true);
@@ -145,11 +198,15 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
             setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj, gruba katılmandan önce gönderildi." }));
             continue;
           }
-          const plaintext = await decrypt(message.ciphertext, messageKey, conversationId);
+          const isLegacyMessage = !message.ciphertext.startsWith("NOVA1:");
+          const plaintext = isLegacyMessage
+            ? decodeLegacyBase64Message(message.ciphertext)
+            : await decrypt(message.ciphertext, messageKey, conversationId);
           setDecryptedMessages((current) => ({ ...current, [message.id]: plaintext }));
+          if (isLegacyMessage) setLegacyMessages((current) => ({ ...current, [message.id]: true }));
         } catch (decryptError) {
           console.warn("Unable to decrypt message:", message.id, decryptError);
-          setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj çözülemedi. Eski şifreleme biçiminde olabilir veya anahtar doğrulanamadı." }));
+          setDecryptedMessages((current) => ({ ...current, [message.id]: "Şifreli mesaj doğrulanamadı. Anahtar sürümü farklı olabilir veya mesaj bozulmuş olabilir; kayıt silinmedi." }));
         } finally {
           decryptingIds.current.delete(message.id);
           decryptedIds.current.add(message.id);
@@ -221,9 +278,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     setGroupChangeBusy(true);
     setError("");
     try {
-      const identity = await getOrCreateIdentity(currentUserId);
-      const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
-      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+      const identity = await getValidatedIdentity(currentUserId, supabase);
       const { data: members, error: membersError } = await supabase.from("conversation_members")
         .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
       if (membersError || !members?.length) throw new Error("Anahtar yenilemesi için aktif üyeler bulunamadı.");
@@ -285,10 +340,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     setGroupChangeBusy(true);
     setError("");
     try {
-      const identity = await getOrCreateIdentity(currentUserId);
-      const { error: publishError } = await supabase.from("profiles")
-        .update({ public_key: identity.publicKey }).eq("id", currentUserId);
-      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+      const identity = await getValidatedIdentity(currentUserId, supabase);
 
       const { data: activeRows, error: membersError } = await supabase.from("conversation_members")
         .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
@@ -498,8 +550,9 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
                 return <div key={message.id} className={`flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
                   {conversationType === "group" && !own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || sender?.username || "Üye")}</span>}</div>}
                   <article className={`message-bubble relative ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
+                    {legacyMessages[message.id] && <p className="mb-1 text-[10px] text-amber-300/80">Eski mesaj · E2EE öncesi biçim</p>}
                     {conversationType === "group" && <p className={`mb-1 text-[11px] font-semibold ${own ? "text-sky-100/80" : "text-slate-300"}`}>{own ? "Sen" : sender?.display_name || sender?.username || "Grup üyesi"}</p>}
-                    {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
+                    {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">{error && !cryptoReady ? "Şifreleme başlatılamadı. Üstteki hata ayrıntısını kontrol et." : "Şifre çözülüyor..."}</p> : message.type === "text" ? (
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
                     ) : mediaPayload ? message.type === "audio" ? (
                       <audio controls preload="metadata" className="max-w-full" src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} />

@@ -4,6 +4,7 @@ const DATABASE_NAME = "nova-e2ee";
 const DATABASE_VERSION = 1;
 const KEY_STORE = "identities";
 const KEY_PREFIX = "nova-e2ee-v1";
+const CANONICAL_E2EE_KEY_ORIGIN = "https://nova-chat-goezcue.vercel.app";
 const identityPromises = new Map<string, Promise<LocalIdentity>>();
 
 export interface LocalIdentity {
@@ -31,12 +32,30 @@ function openKeyDatabase(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error("Bu tarayıcı IndexedDB desteği sunmuyor."));
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("Yerel şifreleme anahtarı veritabanı 10 saniye içinde yanıt vermedi. Diğer NOVA sekmelerini kapatıp yeniden deneyin."));
+    }, 10_000);
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(KEY_STORE)) request.result.createObjectStore(KEY_STORE);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Anahtar veritabanı açılamadı."));
-    request.onblocked = () => reject(new Error("Anahtar veritabanı başka bir sekmede güncelleniyor."));
+    request.onsuccess = () => {
+      if (settled) {
+        request.result.close();
+        return;
+      }
+      finish(() => resolve(request.result));
+    };
+    request.onerror = () => finish(() => reject(request.error ?? new Error("Anahtar veritabanı açılamadı.")));
+    request.onblocked = () => finish(() => reject(new Error("Anahtar veritabanı başka bir sekmede güncelleniyor. Diğer NOVA sekmelerini kapatıp yeniden deneyin.")));
   });
 }
 
@@ -53,13 +72,28 @@ async function readStoredIdentity(userId: string): Promise<StoredIdentity | null
   }
 }
 
-async function storeIdentity(userId: string, identity: StoredIdentity): Promise<void> {
+async function storeIdentityIfAbsent(userId: string, identity: StoredIdentity): Promise<StoredIdentity> {
   const database = await openKeyDatabase();
   try {
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       const transaction = database.transaction(KEY_STORE, "readwrite");
-      transaction.objectStore(KEY_STORE).put(identity, userId);
-      transaction.oncomplete = () => resolve();
+      const store = transaction.objectStore(KEY_STORE);
+      let winningIdentity: StoredIdentity | null = null;
+      const request = store.get(userId);
+      request.onsuccess = () => {
+        const existing = request.result as StoredIdentity | undefined;
+        if (existing) {
+          winningIdentity = existing;
+          return;
+        }
+        winningIdentity = identity;
+        store.add(identity, userId);
+      };
+      request.onerror = () => reject(request.error ?? new Error("Yerel anahtar okunamadı."));
+      transaction.oncomplete = () => {
+        if (winningIdentity) resolve(winningIdentity);
+        else reject(new Error("Yerel anahtar kaydı tamamlanamadı."));
+      };
       transaction.onerror = () => reject(transaction.error ?? new Error("Yerel anahtar kaydedilemedi."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Yerel anahtar kaydı iptal edildi."));
     });
@@ -99,16 +133,39 @@ async function createIdentity(): Promise<LocalIdentity> {
   }
 }
 
-/** Creates/restores a browser-local ECDH identity; the persisted private CryptoKey is non-extractable. */
-export function getOrCreateIdentity(userId: string): Promise<LocalIdentity> {
+/** Restores a browser-local ECDH identity without silently replacing a key already published by this account. */
+export function getOrCreateIdentity(userId: string, expectedPublicKey?: string | null): Promise<LocalIdentity> {
+  const expected = expectedPublicKey?.toLowerCase() ?? null;
+  if (!expected && typeof window !== "undefined" && window.location.origin !== CANONICAL_E2EE_KEY_ORIGIN) {
+    return Promise.reject(new Error(
+      "Bu önizleme adresi üretim Supabase veritabanını kullanıyor. Güvenlik nedeniyle burada yeni E2EE anahtarı kaydedilmez; üretim NOVA adresini kullanın veya ayrı bir test veritabanı tanımlayın.",
+    ));
+  }
   const existing = identityPromises.get(userId);
-  if (existing) return existing;
+  if (existing) {
+    return existing.then((identity) => {
+      if (expected && identity.publicKey.toLowerCase() !== expected) {
+        throw new Error("Bu tarayıcıdaki özel anahtar sunucudaki hesap anahtarıyla eşleşmiyor. Eski mesajları korumak için anahtar değiştirilmedi.");
+      }
+      return identity;
+    });
+  }
   const pending = (async () => {
     const stored = await readStoredIdentity(userId);
-    if (stored?.publicKey && stored.privateKey && stored.privateKey.extractable === false) return stored;
+    if (stored !== null) {
+      if (!stored.publicKey || !stored.privateKey || stored.privateKey.extractable !== false) {
+        throw new Error("Bu tarayıcıdaki kayıtlı şifreleme anahtarı eksik veya geçersiz. Eski mesajları korumak için yeni anahtar oluşturulmadı.");
+      }
+      if (expected && stored.publicKey.toLowerCase() !== expected) {
+        throw new Error("Bu tarayıcıdaki özel anahtar sunucudaki hesap anahtarıyla eşleşmiyor. Eski mesajları korumak için anahtar değiştirilmedi.");
+      }
+      return stored;
+    }
+    if (expected) {
+      throw new Error("Bu hesap için sunucuda bir şifreleme anahtarı kayıtlı ancak bu tarayıcıda özel anahtar bulunamadı. Eski mesajları korumak için yeni anahtar oluşturulmadı.");
+    }
     const identity = await createIdentity();
-    await storeIdentity(userId, identity);
-    return identity;
+    return await storeIdentityIfAbsent(userId, identity);
   })();
   identityPromises.set(userId, pending);
   pending.catch(() => identityPromises.delete(userId));
