@@ -1220,3 +1220,16 @@ p, small, time, label, .conversation-status, .peer-profile-username,
   .nova-header-action { min-height: 38px; padding: 0 10px; font-size: 12px; }
   .send-button { background: #1F2937 !important; color: #F8FAFC !important; }
 }
+
+
+/* Final navigation rail cleanup: plain icons, no logo fragment or effects */
+.navigation-rail::before { display: none !important; content: none !important; }
+.navigation-rail .rail-link,
+.navigation-rail .rail-link:hover,
+.navigation-rail .rail-link:focus-visible,
+.navigation-rail .rail-link-active,
+.navigation-rail .rail-link-active:hover {
+  background: transparent !important; border-color: transparent !important; box-shadow: none !important;
+  filter: none !important; text-shadow: none !important; color: #00BFFF !important;
+}
+.navigation-rail .rail-link svg { filter: none !important; box-shadow: none !important; text-shadow: none !important; }

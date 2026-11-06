@@ -22,11 +22,13 @@ function timeLabel(value: string | null) {
 
 export function ChatSidebar({ activeConversationId }: { activeConversationId?: string }) {
   const { user } = useAuth();
+  const userId = user?.id;
   const router = useRouter();
   const [items, setItems] = useState<ChatItem[]>([]);
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [inlinePeople, setInlinePeople] = useState<SearchProfile[]>([]);
   const [inlineSearchLoading, setInlineSearchLoading] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
@@ -44,35 +46,61 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) { setItems([]); setLoading(false); return; }
     let active = true;
     async function loadChats() {
       setLoading(true);
-      const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user!.id);
-      if (!active) return;
-      if (membershipError || !memberships?.length) { setItems([]); setLoading(false); return; }
-      const ids = memberships.map((entry) => entry.conversation_id);
-      const results = await Promise.all(ids.map(async (id) => {
-        const [{ data: members }, { data: messages }] = await Promise.all([
-          supabase.from("conversation_members").select("user_id").eq("conversation_id", id).neq("user_id", user!.id),
-          supabase.from("messages").select("sender_id, created_at").eq("conversation_id", id).order("created_at", { ascending: false }).limit(100),
-        ]);
-        const peerId = members?.[0]?.user_id;
-        if (!peerId) return null;
-        const { data: peer } = await supabase.from("profiles").select("display_name, username, avatar_url").eq("id", peerId).maybeSingle();
-        if (!peer) return null;
-        const lastAt = messages?.[0]?.created_at || null;
-        const lastRead = typeof window !== "undefined" ? window.localStorage.getItem(`nova-chat-read:${id}`) : null;
-        const unread = messages?.filter((message) => message.sender_id !== user!.id && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
-        return { id, peerId, name: peer.display_name || peer.username || "Kullanıcı", username: peer.username || "", avatarUrl: peer.avatar_url || null, lastAt, unread } satisfies ChatItem;
-      }));
-      if (!active) return;
-      setItems(results.filter((item): item is ChatItem => item !== null).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
-      setLoading(false);
+      setLoadError("");
+      try {
+        const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", userId);
+        if (membershipError) throw membershipError;
+        if (!memberships?.length) { if (active) setItems([]); return; }
+        const ids = memberships.map((entry) => entry.conversation_id);
+        const results = await Promise.all(ids.map(async (id) => {
+          const [{ data: members, error: membersError }, { data: messages, error: messagesError }] = await Promise.all([
+            supabase.from("conversation_members").select("user_id").eq("conversation_id", id).neq("user_id", userId),
+            supabase.from("messages").select("sender_id, created_at").eq("conversation_id", id).order("created_at", { ascending: false }).limit(100),
+          ]);
+          if (membersError) throw membersError;
+          if (messagesError) throw messagesError;
+          const peerId = members?.[0]?.user_id;
+          if (!peerId) return null;
+          const { data: peer, error: peerError } = await supabase.from("profiles").select("display_name, username, avatar_url").eq("id", peerId).maybeSingle();
+          if (peerError) throw peerError;
+          if (!peer) return null;
+          const lastAt = messages?.[0]?.created_at || null;
+          const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + id) : null;
+          const unread = messages?.filter((message) => message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime())).length || 0;
+          return { id, peerId, name: peer.display_name || peer.username || "Kullan\u0131c\u0131", username: peer.username || "", avatarUrl: peer.avatar_url || null, lastAt, unread } satisfies ChatItem;
+        }));
+        if (!active) return;
+        setItems(results.filter((item): item is ChatItem => item !== null).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+      } catch (error) {
+        if (!active) return;
+        console.error("Chat list initial load failed:", error);
+        setItems([]);
+        setLoadError("Sohbetler y\u00FCklenemedi. Ba\u011Flant\u0131n\u0131 kontrol edip sayfay\u0131 yenile.");
+      } finally { if (active) setLoading(false); }
     }
     void loadChats();
     return () => { active = false; };
-  }, [supabase, user]);
+  }, [supabase, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const channel = supabase.channel("chat-list:" + userId).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+      if (!active) return;
+      const message = payload.new as { conversation_id: string; sender_id: string; created_at: string };
+      const lastRead = typeof window !== "undefined" ? window.localStorage.getItem("nova-chat-read:" + message.conversation_id) : null;
+      setItems((current) => current.map((item) => {
+        if (item.id !== message.conversation_id) return item;
+        const isUnread = message.sender_id !== userId && (!lastRead || new Date(message.created_at).getTime() > new Date(lastRead).getTime());
+        return { ...item, lastAt: message.created_at, unread: isUnread ? item.unread + 1 : item.unread };
+      }).sort((a, b) => (b.lastAt || "").localeCompare(a.lastAt || "")));
+    }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [supabase, userId]);
 
   useEffect(() => { if (activeConversationId) markRead(activeConversationId); }, [activeConversationId, markRead]);
 
@@ -123,7 +151,6 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       <NavigationRail showMobileNav={!activeConversationId} />
       <aside className={`chat-sidebar flex h-full min-h-0 min-w-0 flex-col border-r border-slate-700/70 ${activeConversationId ? "hidden md:flex" : "flex"}`}>
         <div className="chat-list-heading flex h-[76px] shrink-0 items-center justify-between gap-3 px-6">
-          <h1 className="text-[24px] font-semibold tracking-tight text-slate-100">Chat</h1>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => document.getElementById("chat-search-input")?.focus()} aria-label="Sohbetlerde ara" title="Ara" className="icon-button"><Search size={19} /></button>
             <button type="button" disabled aria-label="Görüntülü arama yakında" title="Görüntülü arama yakında" className="icon-button opacity-60"><Video size={19} /></button>
