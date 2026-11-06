@@ -106,7 +106,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
           if (!groupKeyEpochs.length) throw new Error("Bu grup için sana ait şifreli anahtar geçmişi bulunamadı.");
           const unwrapped = await Promise.all(groupKeyEpochs.map(async (epoch) => {
             if (!epoch.key_sender_public_key) throw new Error("Grup anahtarının gönderen açık anahtarı bulunamadı.");
-            return [epoch.key_version, await unwrapGroupKey(epoch.encrypted_group_key, identity.privateKey, epoch.key_sender_public_key, conversationId)] as const;
+            return [epoch.key_version, await unwrapGroupKey(epoch.encrypted_group_key, identity.privateKey, epoch.key_sender_public_key, conversationId, epoch.key_version)] as const;
           }));
           epochKeys = Object.fromEntries(unwrapped);
           key = epochKeys[groupKeyVersion];
@@ -236,7 +236,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       const generated = await createGroupKey();
       const encryptedKeys = await Promise.all(profiles.map(async (profile) => ({
         user_id: profile.id,
-        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId),
+        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId, groupKeyVersion + 1),
       })));
       const { data, error: rotateError } = await supabase.rpc("rotate_group_key", {
         p_conversation_id: conversationId,
@@ -306,7 +306,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       const generated = await createGroupKey();
       const encryptedKeys = await Promise.all(profiles.map(async (profile) => ({
         user_id: profile.id,
-        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId),
+        encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, profile.public_key!, conversationId, groupKeyVersion + 1),
       })));
       const { data, error: rotationError } = await supabase.rpc("rotate_group_membership", {
         p_conversation_id: conversationId,
