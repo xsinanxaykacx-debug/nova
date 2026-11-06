@@ -1942,3 +1942,36 @@ input:focus-visible, textarea:focus-visible {
   background-color: #29384A !important;
   border-color: #29384A !important;
 }
+
+
+/* 2. bölüm: lacivert yerine nötr koyu gri */
+.chat-sidebar,
+.calls-sidebar,
+.chat-list-heading,
+.calls-heading {
+  background: #343A40 !important;
+  background-color: #343A40 !important;
+  border-color: #4A525A !important;
+}
+.chat-list-item:hover,
+.chat-list-item-active,
+.call-history-row-selected {
+  background: #414950 !important;
+}
+.chat-sidebar .chat-search-field {
+  background: #292F35 !important;
+  border-color: #59636D !important;
+}
+.chat-sidebar .chat-filter-pill {
+  color: #D0D7DF !important;
+  border-color: #68737E !important;
+}
+.chat-sidebar .chat-filter-pill-active {
+  background: #4C8C82 !important;
+  border-color: #4C8C82 !important;
+  color: #FFFFFF !important;
+}
+.chat-sidebar .chat-list-item-active {
+  border-color: #87929D !important;
+  background: #414950 !important;
+}
