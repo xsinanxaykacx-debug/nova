@@ -168,7 +168,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
     if (!user || creatingGroup) return;
     const name = groupName.trim();
     if (name.length < 2 || name.length > 80) { setModalError("Grup adı 2-80 karakter olmalı."); return; }
-    if (selectedMembers.length < 2) { setModalError("Grup için en az 2 kişi seç."); return; }
+    if (selectedMembers.length < 1) { setModalError("Grup için kendin hariç en az 1 kişi seç."); return; }
     setCreatingGroup(true); setModalError("");
     try {
       const { data: selectedProfiles, error: selectedError } = await supabase.from("profiles")
@@ -254,7 +254,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       {newChatOpen && <div className="new-chat-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewChatOpen(false); }}>
         <section className="new-chat-modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title">
           <header className="new-chat-modal-header"><div className="flex items-center gap-3"><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><ArrowLeft size={20} /></button><h2 id="new-chat-title">Yeni sohbet</h2></div><div className="flex items-center gap-2"><button type="button" onClick={() => { setGroupMode((value) => !value); setModalError(""); }} className="new-chat-action">{groupMode ? "Birebir" : "Yeni Grup"}</button><button type="button" onClick={() => setNewChatOpen(false)} className="new-chat-close" aria-label="Kapat"><X size={19} /></button></div></header>
-          {groupMode && <div className="space-y-2 px-5 pt-4"><input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} placeholder="Grup adı" aria-label="Grup adı" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><input value={groupAvatarUrl} onChange={(event) => setGroupAvatarUrl(event.target.value)} placeholder="Grup fotoğrafı URL (isteğe bağlı)" aria-label="Grup fotoğrafı URL" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><p className="text-xs text-slate-400">Gruba eklenecek kişileri aşağıdan seç. En az 2 kişi.</p></div>}
+          {groupMode && <div className="space-y-2 px-5 pt-4"><input value={groupName} onChange={(event) => setGroupName(event.target.value)} maxLength={80} placeholder="Grup adı" aria-label="Grup adı" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><input value={groupAvatarUrl} onChange={(event) => setGroupAvatarUrl(event.target.value)} placeholder="Grup fotoğrafı URL (isteğe bağlı)" aria-label="Grup fotoğrafı URL" className="chat-message-input w-full rounded-xl px-4 py-3 text-sm" /><p className="text-xs text-slate-400">Gruba eklenecek kişileri aşağıdan seç. Kendin hariç en az 1 kişi.</p></div>}
           <form onSubmit={searchPeople} className="new-chat-search"><Search size={19} /><input autoFocus value={personTerm} onChange={(event) => setPersonTerm(event.target.value)} placeholder="İsim veya kullanıcı adı ara" aria-label="Kişi ara" /></form>
           <div className="new-chat-results">
             {!peopleSearched && <div className="new-chat-hint"><UserRound size={30} /><p>Yeni bir sohbet başlatmak için kişi ara.</p></div>}
@@ -266,7 +266,7 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
               <span className="min-w-0 flex-1 text-left"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
               <span className="new-chat-action">{groupMode ? selectedMembers.includes(person.id) ? "Seçildi" : "Ekle" : openingId === person.id ? "Açılıyor..." : "Mesaj"}</span>
             </button>)}
-            {groupMode && <div className="px-2 py-3"><p className="mb-3 text-xs text-slate-300">Seçilen üye: {selectedMembers.length}</p><button type="button" onClick={() => void createGroup()} disabled={creatingGroup || selectedMembers.length < 2 || groupName.trim().length < 2} className="new-chat-action w-full">{creatingGroup ? "Grup oluşturuluyor..." : "Grup oluştur"}</button></div>}
+            {groupMode && <div className="px-2 py-3"><p className="mb-3 text-xs text-slate-300">Seçilen üye: {selectedMembers.length}</p><button type="button" onClick={() => void createGroup()} disabled={creatingGroup || selectedMembers.length < 1 || groupName.trim().length < 2} className="new-chat-action w-full">{creatingGroup ? "Grup oluşturuluyor..." : "Grup oluştur"}</button></div>}
             {modalError && <p role="status" className="new-chat-error">{modalError}</p>}
           </div>
         </section>
