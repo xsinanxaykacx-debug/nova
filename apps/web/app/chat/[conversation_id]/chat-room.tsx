@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download } from "lucide-react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download, MoreVertical, Trash2 } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity, unwrapGroupKey } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -68,6 +68,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -116,7 +117,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     if (!sharedKey) return;
     const activeKey = sharedKey;
     async function decryptPendingMessages() {
-      const pending = messages.filter((message) => !decryptedIds.current.has(message.id) && !decryptingIds.current.has(message.id));
+      const pending = messages.filter((message) => !message.deleted_at && !decryptedIds.current.has(message.id) && !decryptingIds.current.has(message.id));
       for (const message of pending) {
         decryptingIds.current.add(message.id);
         try {
@@ -137,7 +138,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
   useEffect(() => {
     let active = true;
     const channel = supabase.channel(`conversation:${conversationId}`).on("postgres_changes", {
-      event: "INSERT", schema: "public", table: "messages",
+      event: "*", schema: "public", table: "messages",
     }, (payload) => {
       if (!active) return;
       const incoming = payload.new as Message;
@@ -147,7 +148,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       if (status === "SUBSCRIBED") {
         setConnection("live");
         const { data, error: historyError } = await supabase.from("messages")
-          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at")
+          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at")
           .eq("conversation_id", conversationId).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(100);
         if (!active) return;
         if (historyError) setError("Mesaj geçmişi yenilenemedi. Canlı bağlantı devam ediyor.");
@@ -162,6 +163,23 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, decryptedMessages]);
 
+  async function deleteMessage(message: Message) {
+    if (message.sender_id !== currentUserId || message.deleted_at) return;
+    if (!window.confirm("Bu mesajı silmek istiyor musun?")) return;
+    setMenuMessageId(null);
+    const deletedAt = new Date().toISOString();
+    const { data, error: deleteError } = await supabase.from("messages")
+      .update({ deleted_at: deletedAt })
+      .eq("id", message.id).eq("sender_id", currentUserId).is("deleted_at", null)
+      .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at")
+      .maybeSingle();
+    if (deleteError || !data) {
+      setError(deleteError?.message || "Mesaj silinemedi. Yalnızca kendi mesajlarını silebilirsin.");
+      return;
+    }
+    addMessages([data as Message]);
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draft.trim();
@@ -174,7 +192,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       const ciphertext = await encrypt(text, sharedKey, conversationId);
       const { data, error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId, sender_id: currentUserId, ciphertext, sender_device_id: currentUserId, type: "text",
-      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at").single();
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at").single();
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli mesaj veritabanına kaydedilemedi.");
       addMessages([data as Message]);
       setDraft("");
@@ -205,7 +223,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
       const { data, error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId, sender_id: currentUserId, ciphertext,
         sender_device_id: currentUserId, type,
-      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at").single();
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at, deleted_at").single();
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli medya veritabanına kaydedilemedi.");
       addMessages([data as Message]);
     } finally { setSending(false); }
@@ -310,9 +328,9 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
                 }
                 return <div key={message.id} className={`flex items-end gap-2 ${own ? "justify-end" : "justify-start"}`}>
                   {conversationType === "group" && !own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || sender?.username || "Üye")}</span>}</div>}
-                  <article className={`message-bubble ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
+                  <article className={`message-bubble relative ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
                     {conversationType === "group" && <p className={`mb-1 text-[11px] font-semibold ${own ? "text-sky-100/80" : "text-slate-300"}`}>{own ? "Sen" : sender?.display_name || sender?.username || "Grup üyesi"}</p>}
-                    {content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
+                    {message.deleted_at ? <p className="text-[13px] italic text-slate-400">Bu mesaj silindi</p> : content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
                     ) : mediaPayload ? message.type === "audio" ? (
                       <audio controls preload="metadata" className="max-w-full" src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} />
@@ -323,9 +341,16 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
                       </div>
                     ) : <p className="text-[13px]">Medya içeriği çözülemedi.</p>}
                     <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${own ? "text-sky-100/75" : "text-slate-500"}`}>
+                      {own && !message.deleted_at && <button type="button" aria-label="Mesaj seçenekleri" title="Mesaj seçenekleri"
+                        onClick={() => setMenuMessageId((current) => current === message.id ? null : message.id)}
+                        className="rounded p-1 text-current opacity-70 transition hover:bg-black/10 hover:opacity-100"><MoreVertical size={14} /></button>}
                       <time>{new Date(message.created_at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time>
                       {own && <CheckCheck size={15} className="text-sky-200" aria-label="İletildi" />}
                     </div>
+                    {menuMessageId === message.id && own && !message.deleted_at && <div className="absolute bottom-9 right-2 z-30 min-w-36 rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-xl">
+                      <button type="button" onClick={() => void deleteMessage(message)}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-300 transition hover:bg-slate-800"><Trash2 size={14} />Mesajı Sil</button>
+                    </div>}
                   </article>
                   {conversationType === "group" && own && <div className="avatar-ring mb-1 h-8 w-8 shrink-0">{sender?.avatar_url ? <Image src={sender.avatar_url} alt="" width={32} height={32} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(sender?.display_name || "Sen")}</span>}</div>}
                 </div>;

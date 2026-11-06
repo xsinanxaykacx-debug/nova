@@ -35,6 +35,8 @@ export interface ConversationMember {
   user_id: UUID;
   role: "admin" | "member";
   joined_at: ISODateString;
+  left_at: ISODateString | null;
+  hidden_at: ISODateString | null;
 }
 
 export interface ConversationKey {
@@ -60,4 +62,5 @@ export interface Message {
   sender_device_id: UUID;
   type: "text" | "audio" | "file";
   created_at: ISODateString;
+  deleted_at: ISODateString | null;
 }
