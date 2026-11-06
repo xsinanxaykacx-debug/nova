@@ -206,7 +206,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
           if (isLegacyMessage) setLegacyMessages((current) => ({ ...current, [message.id]: true }));
         } catch (decryptError) {
           console.warn("Unable to decrypt message:", message.id, decryptError);
-          setDecryptedMessages((current) => ({ ...current, [message.id]: "Bu mesaj çözülemedi. Eski şifreleme biçiminde olabilir veya anahtar doğrulanamadı." }));
+          setDecryptedMessages((current) => ({ ...current, [message.id]: "Şifreli mesaj doğrulanamadı. Anahtar sürümü farklı olabilir veya mesaj bozulmuş olabilir; kayıt silinmedi." }));
         } finally {
           decryptingIds.current.delete(message.id);
           decryptedIds.current.add(message.id);
