@@ -21,6 +21,16 @@ function timeLabel(value: string | null) {
   return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
 }
 
+function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12_000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(label + " 12 saniye içinde yanıt vermedi. Bağlantıyı kontrol edip yeniden deneyin.")), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error: unknown) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 export function ChatSidebar({ activeConversationId }: { activeConversationId?: string }) {
   const { user } = useAuth();
   const userId = user?.id;
@@ -196,15 +206,39 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       if (selectedProfiles.some((profile) => !profile.public_key)) {
         throw new Error("Seçilen üyelerden bazılarının E2EE açık anahtarı hazır değil. Önce bu üyelerle birebir sohbet başlatılmalı.");
       }
-      const identity = await getOrCreateIdentity(user.id);
-      const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", user.id);
-      if (publishError) throw new Error("Kendi açık anahtarın kaydedilemedi: " + publishError.message);
-      const { data: ownProfile, error: ownProfileError } = await supabase.from("profiles")
-        .select("public_key").eq("id", user.id).single();
-      if (ownProfileError || !ownProfile?.public_key) throw new Error("Kendi açık anahtarın okunamadı.");
+      const { data: initialOwnProfile, error: initialOwnProfileError } = await withTimeout(
+        supabase.from("profiles").select("public_key").eq("id", user.id).maybeSingle(),
+        "Hesap şifreleme anahtarı sorgusu",
+      );
+      if (initialOwnProfileError) throw new Error("Kendi açık anahtarın okunamadı: " + initialOwnProfileError.message);
+      const identity = await withTimeout(
+        getOrCreateIdentity(user.id, initialOwnProfile?.public_key ?? null),
+        "Yerel şifreleme anahtarı kontrolü",
+      );
+      let ownPublicKey = initialOwnProfile?.public_key ?? null;
+      if (!ownPublicKey) {
+        const { data: publishedProfile, error: publishError } = await withTimeout(
+          supabase.from("profiles").update({ public_key: identity.publicKey })
+            .eq("id", user.id).is("public_key", null).select("public_key").maybeSingle(),
+          "Hesap şifreleme anahtarının kaydı",
+        );
+        if (publishError) throw new Error("Kendi açık anahtarın kaydedilemedi: " + publishError.message);
+        ownPublicKey = publishedProfile?.public_key ?? null;
+        if (!ownPublicKey) {
+          const { data: latestProfile, error: latestProfileError } = await withTimeout(
+            supabase.from("profiles").select("public_key").eq("id", user.id).maybeSingle(),
+            "Hesap şifreleme anahtarı doğrulaması",
+          );
+          if (latestProfileError) throw new Error("Kendi açık anahtarın doğrulanamadı: " + latestProfileError.message);
+          ownPublicKey = latestProfile?.public_key ?? null;
+        }
+      }
+      if (!ownPublicKey || ownPublicKey.toLowerCase() !== identity.publicKey.toLowerCase()) {
+        throw new Error("Hesap anahtarı başka bir oturumda değiştirilmiş. Eski mesajları korumak için grup oluşturma durduruldu.");
+      }
       const conversationId = crypto.randomUUID();
       const generated = await createGroupKey();
-      const recipients = [{ id: user.id, public_key: ownProfile.public_key }, ...selectedProfiles];
+      const recipients = [{ id: user.id, public_key: ownPublicKey }, ...selectedProfiles];
       const encryptedKeys = await Promise.all(recipients.map(async (recipient) => ({
         user_id: recipient.id,
         encrypted_group_key: await wrapGroupKey(generated.rawKeyHex, identity.privateKey, recipient.public_key!, conversationId),
