@@ -855,3 +855,9 @@ button:disabled { cursor: not-allowed; }
 .bg-slate-900, .bg-slate-950 { background-color: #001122; }
 .bg-slate-800, .bg-slate-700 { background-color: #3b3b3b; }
 .border-slate-700, .border-slate-800, .border-slate-600 { border-color: #3b3b3b; }
+
+/* Keep all chat filters visible in the sidebar. */
+.chat-filter-row { gap: 4px; padding-left: 12px; padding-right: 12px; }
+.chat-filter-pill { padding-left: 9px; padding-right: 9px; }
+.chat-filter-pill:last-child { padding-left: 8px; padding-right: 8px; font-size: 11px; }
+
