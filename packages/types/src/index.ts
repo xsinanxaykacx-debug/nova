@@ -40,5 +40,6 @@ export interface Message {
   sender_id: UUID;
   ciphertext: string;
   sender_device_id: UUID;
+  type: "text" | "audio" | "file";
   created_at: ISODateString;
 }

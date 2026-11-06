@@ -2,12 +2,26 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { ArrowLeft, CheckCheck, LockKeyhole, Camera, Send, Phone, UserRound, Paperclip, Mic, X, Download } from "lucide-react";
 import type { Message } from "@nova/types";
 import { decrypt, deriveConversationKey, encrypt, getOrCreateIdentity } from "@nova/crypto";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { ChatSidebar } from "@/components/chat-sidebar";
+
+type EncryptedMediaPayload = { version: 1; name: string; mimeType: string; size: number; data: string };
+const MAX_MEDIA_BYTES = 300 * 1024;
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then((buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+    }
+    return btoa(binary);
+  });
+}
 
 type ChatRoomProps = {
   conversationId: string;
@@ -48,6 +62,11 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recorderChunksRef = useRef<BlobPart[]>([]);
 
   const addMessages = useCallback((next: Message[]) => {
     setMessages((current) => mergeMessages(current, next));
@@ -116,7 +135,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
       if (status === "SUBSCRIBED") {
         setConnection("live");
         const { data, error: historyError } = await supabase.from("messages")
-          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at")
+          .select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at")
           .eq("conversation_id", conversationId).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(100);
         if (!active) return;
         if (historyError) setError("Mesaj geçmişi yenilenemedi. Canlı bağlantı devam ediyor.");
@@ -142,8 +161,8 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     try {
       const ciphertext = await encrypt(text, sharedKey, conversationId);
       const { data, error: insertError } = await supabase.from("messages").insert({
-        conversation_id: conversationId, sender_id: currentUserId, ciphertext, sender_device_id: currentUserId,
-      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, created_at").single();
+        conversation_id: conversationId, sender_id: currentUserId, ciphertext, sender_device_id: currentUserId, type: "text",
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at").single();
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli mesaj veritabanına kaydedilemedi.");
       addMessages([data as Message]);
       setDraft("");
@@ -154,6 +173,84 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
     } finally { setSending(false); }
   }
 
+
+  async function sendMediaBlob(blob: Blob, type: "audio" | "file", name: string) {
+    if (!blob.size) throw new Error("Gönderilecek medya boş.");
+    if (blob.size > MAX_MEDIA_BYTES) throw new Error("Bu sürümde ses veya dosya boyutu en fazla 300 KB olabilir.");
+    if (!sharedKey || !cryptoReady) throw new Error("Uçtan uca şifreleme henüz hazır değil.");
+    setSending(true);
+    setError("");
+    try {
+      const payload: EncryptedMediaPayload = {
+        version: 1, name, mimeType: blob.type || "application/octet-stream",
+        size: blob.size, data: await blobToBase64(blob),
+      };
+      const ciphertext = await encrypt(JSON.stringify(payload), sharedKey, conversationId);
+      const { data, error: insertError } = await supabase.from("messages").insert({
+        conversation_id: conversationId, sender_id: currentUserId, ciphertext,
+        sender_device_id: currentUserId, type,
+      }).select("id, conversation_id, sender_id, ciphertext, sender_device_id, type, created_at").single();
+      if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli medya veritabanına kaydedilemedi.");
+      addMessages([data as Message]);
+    } finally { setSending(false); }
+  }
+
+  async function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    try { await sendMediaBlob(file, "file", file.name); }
+    catch (fileError) {
+      console.error("E2EE file send failed:", fileError);
+      setError(fileError instanceof Error ? fileError.message : "Şifreli dosya gönderilemedi.");
+    } finally { input.value = ""; }
+  }
+
+  async function toggleRecording() {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+      return;
+    }
+    if (sending || !cryptoReady) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Bu tarayıcı ses kaydını desteklemiyor.");
+      return;
+    }
+    try {
+      setError("");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const supportedMime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find((mime) => MediaRecorder.isTypeSupported(mime));
+      const recorder = new MediaRecorder(stream, supportedMime
+        ? { mimeType: supportedMime, audioBitsPerSecond: 32000 }
+        : { audioBitsPerSecond: 32000 });
+      recorderChunksRef.current = [];
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) recorderChunksRef.current.push(event.data); };
+      recorder.onerror = () => setError("Ses kaydı sırasında bir hata oluştu.");
+      recorder.onstop = () => {
+        const blob = new Blob(recorderChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        recorderChunksRef.current = [];
+        stream.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        recorderRef.current = null;
+        setRecording(false);
+        const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+        void sendMediaBlob(blob, "audio", `ses-${Date.now()}.${extension}`).catch((recordError) => {
+          console.error("E2EE audio send failed:", recordError);
+          setError(recordError instanceof Error ? recordError.message : "Şifreli ses gönderilemedi.");
+        });
+      };
+      mediaStreamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.start(250);
+      setRecording(true);
+    } catch (recordError) {
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      recorderRef.current = null;
+      setRecording(false);
+      setError(recordError instanceof Error ? recordError.message : "Mikrofon açılamadı. İzinleri kontrol et.");
+    }
+  }
 
 
   return (
@@ -178,9 +275,25 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
               {messages.map((message) => {
                 const own = message.sender_id === currentUserId;
                 const content = decryptedMessages[message.id];
+                let mediaPayload: EncryptedMediaPayload | null = null;
+                if (content && message.type !== "text") {
+                  try {
+                    const parsed = JSON.parse(content) as EncryptedMediaPayload;
+                    if (parsed.version === 1 && typeof parsed.data === "string" && typeof parsed.name === "string") mediaPayload = parsed;
+                  } catch { mediaPayload = null; }
+                }
                 return <div key={message.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
                   <article className={`message-bubble ${own ? "message-bubble-outgoing" : "message-bubble-incoming"}`}>
-                    <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content ?? "Şifre çözülüyor..."}</p>
+                    {content === undefined ? <p className="text-[14px]">Şifre çözülüyor...</p> : message.type === "text" ? (
+                      <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
+                    ) : mediaPayload ? message.type === "audio" ? (
+                      <audio controls preload="metadata" className="max-w-full" src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} />
+                    ) : (
+                      <div className="flex max-w-full items-center gap-3 text-sm">
+                        <span className="min-w-0 break-all">{mediaPayload.name}</span>
+                        <a className="inline-flex shrink-0 items-center gap-1 underline" href={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} download={mediaPayload.name}><Download size={14} />İndir</a>
+                      </div>
+                    ) : <p className="text-[13px]">Medya içeriği çözülemedi.</p>}
                     <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${own ? "text-sky-100/75" : "text-slate-500"}`}>
                       <time>{new Date(message.created_at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time>
                       {own && <CheckCheck size={15} className="text-sky-200" aria-label="İletildi" />}
@@ -194,6 +307,7 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
         </div>
 
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} aria-label="Gönderilecek dosyayı seç" />
         <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
           <button type="button" disabled aria-label="Kamera yakında" title="Kamera yakında" className="composer-icon-button composer-send-leading"><Camera size={21} /></button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
@@ -202,8 +316,8 @@ export function ChatRoom({ conversationId, currentUserId, peerPublicKey, peerNam
           }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`; }}
             rows={1} maxLength={4000} placeholder="" disabled={!cryptoReady}
             className="chat-message-input max-h-[120px] min-h-[50px] flex-1 resize-none rounded-[22px] px-5 py-3.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50" />
-          <button type="button" disabled aria-label="Dosya ekleme yakında" title="Dosya ekleme" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
-          <button type="button" disabled aria-label="Ses kaydı yakında" title="Ses kaydı" className="composer-icon-button"><Mic size={21} /></button>
+          <button type="button" disabled={!cryptoReady || sending} onClick={() => fileInputRef.current?.click()} aria-label="Dosya ekle" title="Dosya ekle" className="composer-icon-button hidden sm:inline-flex"><Paperclip size={21} /></button>
+          <button type="button" disabled={!cryptoReady || sending} onClick={() => void toggleRecording()} aria-label={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} title={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} className="composer-icon-button"><Mic size={21} /></button>
           <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /></button>
         </form>
 
