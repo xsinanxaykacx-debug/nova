@@ -1867,3 +1867,28 @@ input:focus-visible, textarea:focus-visible {
   background: #E2E8ED !important;
   border-color: #B8C3CE !important;
 }
+
+
+/* Sohbet başlığındaki telefon ve profil ikonları: zemin yok, koyu çizgi */
+.chat-room-header .nova-header-action,
+.chat-room-header .nova-header-action:disabled {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #354253 !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+.chat-room-header .nova-header-action svg {
+  color: #354253 !important;
+  stroke: currentColor !important;
+  opacity: 1 !important;
+}
+.chat-room-header .nova-header-action:hover:not(:disabled) {
+  background: transparent !important;
+  color: #17243A !important;
+  border-color: transparent !important;
+}
+.chat-room-header .nova-header-action:hover:not(:disabled) svg {
+  color: #17243A !important;
+}
