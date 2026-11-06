@@ -1,34 +1,45 @@
-"use client";
+﻿"use client";
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import type { MessagePayload } from "firebase/messaging";
+import { getToken, onMessage } from "firebase/messaging";
 import type { Session, User } from "@supabase/supabase-js";
 import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/supabase/client";
+import { firebaseVapidKey, getFirebaseMessaging } from "@/lib/firebase";
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  pushMessage: MessagePayload | null;
+  enablePushNotifications: () => Promise<string>;
 };
 
 const AuthContext = createContext<AuthContextValue>({
   session: null,
   user: null,
   loading: true,
+  pushMessage: null,
+  enablePushNotifications: async () => {
+    throw new Error("Authentication is not ready.");
+  },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pushMessage, setPushMessage] = useState<MessagePayload | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -60,9 +71,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (!userId) {
+      setPushMessage(null);
+      return;
+    }
+
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    void getFirebaseMessaging().then((messaging) => {
+      if (!active || !messaging) return;
+      unsubscribe = onMessage(messaging, (payload) => {
+        if (active) setPushMessage(payload);
+      });
+    }).catch((error: unknown) => {
+      console.error("Unable to initialize foreground push listener:", error);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [userId]);
+
+  const enablePushNotifications = useCallback(async () => {
+    if (!session?.user) throw new Error("Please sign in before enabling notifications.");
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      throw new Error("This browser does not support web notifications.");
+    }
+    if (!firebaseVapidKey) throw new Error("Firebase VAPID key is not configured.");
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") throw new Error("Bildirim izni verilmedi.");
+
+    const messaging = await getFirebaseMessaging();
+    if (!messaging) throw new Error("Firebase Messaging bu tarayıcıda desteklenmiyor.");
+
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const token = await getToken(messaging, {
+      vapidKey: firebaseVapidKey,
+      serviceWorkerRegistration: registration,
+    });
+    if (!token) throw new Error("Unable to get a Firebase notification token.");
+
+    const supabase = createBrowserSupabaseClient();
+    const { error } = await supabase.from("fcm_tokens").upsert(
+      {
+        user_id: session.user.id,
+        token,
+        platform: "web",
+        updated_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "token" },
+    );
+    if (error) throw new Error(`Could not save notification token: ${error.message}`);
+    return token;
+  }, [session?.user]);
+
   const value = useMemo(
-    () => ({ session, user: session?.user ?? null, loading }),
-    [session, loading],
+    () => ({
+      session,
+      user: session?.user ?? null,
+      loading,
+      pushMessage,
+      enablePushNotifications,
+    }),
+    [session, loading, pushMessage, enablePushNotifications],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

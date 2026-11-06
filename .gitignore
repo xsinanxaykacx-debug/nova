@@ -14,3 +14,12 @@ coverage
 !.env.*.example
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Firebase Admin credentials and private keys
+*service-account*.json
+*service_account*.json
+*firebase-adminsdk*.json
+*.pem
+*.p12
+*.pfx
+*.key
