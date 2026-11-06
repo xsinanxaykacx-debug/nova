@@ -1823,3 +1823,23 @@ input:focus-visible, textarea:focus-visible {
 .new-chat-modal .new-chat-error {
   color: #D5DAE2 !important;
 }
+
+
+/* Yeni sohbet araması: yalnızca büyüteç, gri odak çerçevesi */
+.new-chat-modal .new-chat-search {
+  border: 1px solid #8792A2 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.new-chat-modal .new-chat-search:focus-within {
+  border-color: #AEB7C4 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.new-chat-modal .new-chat-search input,
+.new-chat-modal .new-chat-search input:focus,
+.new-chat-modal .new-chat-search input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
