@@ -20,6 +20,37 @@ function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = 12_0
   });
 }
 
+async function getValidatedIdentity(currentUserId: string, supabase: ReturnType<typeof createBrowserSupabaseClient>) {
+  const { data: ownProfile, error: ownProfileError } = await withTimeout(
+    supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+    "Hesap şifreleme anahtarı sorgusu",
+  );
+  if (ownProfileError) throw new Error("Hesap şifreleme anahtarı okunamadı: " + ownProfileError.message);
+  const identity = await withTimeout(
+    getOrCreateIdentity(currentUserId, ownProfile?.public_key ?? null),
+    "Yerel şifreleme anahtarı kontrolü",
+  );
+  if (!ownProfile?.public_key) {
+    const { data: publishedProfile, error: publishError } = await withTimeout(
+      supabase.from("profiles").update({ public_key: identity.publicKey })
+        .eq("id", currentUserId).is("public_key", null).select("public_key").maybeSingle(),
+      "Hesap şifreleme anahtarının kaydı",
+    );
+    if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
+    if (!publishedProfile?.public_key) {
+      const { data: latestProfile, error: latestProfileError } = await withTimeout(
+        supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
+        "Hesap şifreleme anahtarı doğrulaması",
+      );
+      if (latestProfileError) throw new Error("Hesap şifreleme anahtarı doğrulanamadı: " + latestProfileError.message);
+      if (latestProfile?.public_key?.toLowerCase() !== identity.publicKey.toLowerCase()) {
+        throw new Error("Hesap anahtarı başka bir oturumda değiştirilmiş. Eski mesajları korumak için bu oturumda şifreleme durduruldu.");
+      }
+    }
+  }
+  return identity;
+}
+
 type EncryptedMediaPayload = { version: 1; name: string; mimeType: string; size: number; data: string };
 const MAX_MEDIA_BYTES = 300 * 1024;
 
@@ -107,33 +138,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
 
     async function initializeEncryption() {
       try {
-        const { data: ownProfile, error: ownProfileError } = await withTimeout(
-          supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
-          "Hesap şifreleme anahtarı sorgusu",
-        );
-        if (ownProfileError) throw new Error("Hesap şifreleme anahtarı okunamadı: " + ownProfileError.message);
-        const identity = await withTimeout(
-          getOrCreateIdentity(currentUserId, ownProfile?.public_key ?? null),
-          "Yerel şifreleme anahtarı kontrolü",
-        );
-        if (!ownProfile?.public_key) {
-          const { data: publishedProfile, error: publishError } = await withTimeout(
-            supabase.from("profiles").update({ public_key: identity.publicKey })
-              .eq("id", currentUserId).is("public_key", null).select("public_key").maybeSingle(),
-            "Hesap şifreleme anahtarının kaydı",
-          );
-          if (publishError) throw new Error("Açık anahtar profiline kaydedilemedi: " + publishError.message);
-          if (!publishedProfile?.public_key) {
-            const { data: latestProfile, error: latestProfileError } = await withTimeout(
-              supabase.from("profiles").select("public_key").eq("id", currentUserId).maybeSingle(),
-              "Hesap şifreleme anahtarı doğrulaması",
-            );
-            if (latestProfileError) throw new Error("Hesap şifreleme anahtarı doğrulanamadı: " + latestProfileError.message);
-            if (latestProfile?.public_key?.toLowerCase() !== identity.publicKey.toLowerCase()) {
-              throw new Error("Hesap anahtarı başka bir oturumda değiştirilmiş. Eski mesajları korumak için bu oturumda şifreleme durduruldu.");
-            }
-          }
-        }
+        const identity = await getValidatedIdentity(currentUserId, supabase);
         let key: CryptoKey;
         let epochKeys: Record<number, CryptoKey> = {};
         if (conversationType === "group") {
@@ -255,9 +260,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     setGroupChangeBusy(true);
     setError("");
     try {
-      const identity = await getOrCreateIdentity(currentUserId);
-      const { error: publishError } = await supabase.from("profiles").update({ public_key: identity.publicKey }).eq("id", currentUserId);
-      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+      const identity = await getValidatedIdentity(currentUserId, supabase);
       const { data: members, error: membersError } = await supabase.from("conversation_members")
         .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
       if (membersError || !members?.length) throw new Error("Anahtar yenilemesi için aktif üyeler bulunamadı.");
@@ -319,10 +322,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
     setGroupChangeBusy(true);
     setError("");
     try {
-      const identity = await getOrCreateIdentity(currentUserId);
-      const { error: publishError } = await supabase.from("profiles")
-        .update({ public_key: identity.publicKey }).eq("id", currentUserId);
-      if (publishError) throw new Error("Açık anahtarın yayımlanamadı: " + publishError.message);
+      const identity = await getValidatedIdentity(currentUserId, supabase);
 
       const { data: activeRows, error: membersError } = await supabase.from("conversation_members")
         .select("user_id").eq("conversation_id", conversationId).is("left_at", null);
