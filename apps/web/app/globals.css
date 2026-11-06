@@ -2098,3 +2098,19 @@ input::placeholder, textarea::placeholder {
   text-shadow: none !important;
   background-image: none !important;
 }
+
+
+/* Sohbet listesi arama alanı: koyu zemin üzerinde okunaklı metin */
+.chat-sidebar .chat-search-field {
+  background: #1F2937 !important;
+  background-color: #1F2937 !important;
+}
+.chat-search-field input {
+  background: transparent !important;
+  color: #FFFFFF !important;
+  caret-color: #FFFFFF !important;
+}
+.chat-search-field input::placeholder {
+  color: #CBD5E1 !important;
+  opacity: 1 !important;
+}
