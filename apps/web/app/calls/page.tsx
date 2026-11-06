@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, PhoneCall, Plus, Trash2, Check } from "lucide-react";
+import { Phone, PhoneCall, PhoneIncoming, Plus, Trash2, Check } from "lucide-react";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 
