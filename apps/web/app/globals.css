@@ -1391,3 +1391,25 @@ button:hover, button:focus, button:focus-visible,
   outline-color: #657087 !important;
   box-shadow: none !important;
 }
+
+
+/* Sol menü: sohbet ve arama ikonlarını üstte sabitle */
+.navigation-rail {
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+.navigation-rail > div {
+  order: 0 !important;
+  display: flex !important;
+  flex: 0 0 auto !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+.navigation-rail > button.rail-link {
+  order: 1 !important;
+  margin-top: auto !important;
+}
