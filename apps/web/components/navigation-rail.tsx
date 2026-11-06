@@ -11,7 +11,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type Profile = { username: string; display_name: string; avatar_url: string | null };
 
 function initials(value: string) {
-  return value.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "N";
+  return value.trim().split(/\\s+/).filter(Boolean).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "N";
 }
 
 export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boolean }) {
@@ -58,15 +58,15 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
 
   return (
     <>
-      <nav className="navigation-rail hidden h-full w-[68px] shrink-0 flex-col items-center border-r border-slate-800/90 py-4 md:flex" aria-label="Ana navigasyon">
-        <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil panelini aç" title="Profil" className="rail-profile-avatar mb-7">{avatar}<span className="rail-profile-name">{displayName}</span></button>
-        <div className="flex flex-col items-center gap-3">
-          <Link href="/chat" aria-label="Sohbetler" title="Sohbetler" data-tooltip="Sohbetler" aria-current={chatActive ? "page" : undefined} className={`rail-link ${chatActive ? "rail-link-active" : ""}`}><MessageCircle size={21} /></Link>
+      <nav className="navigation-rail hidden h-full w-[68px] shrink-0 flex-col items-center border-r border-slate-800/90 py-5 md:flex" aria-label="Ana navigasyon">
+        <div className="flex flex-col items-center gap-4">
+          <Link href="/chat" aria-label="Sohbet" title="Sohbet" data-tooltip="Sohbet" aria-current={chatActive ? "page" : undefined} className={`rail-link ${chatActive ? "rail-link-active" : ""}`}><MessageCircle size={21} /></Link>
           <Link href="/calls" aria-label="Aramalar" title="Aramalar" data-tooltip="Aramalar" aria-current={callsActive ? "page" : undefined} className={`rail-link ${callsActive ? "rail-link-active" : ""}`}><Phone size={21} /></Link>
         </div>
+        <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" title="Profil" data-tooltip="Profil" className="rail-link mt-auto"><UserRound size={21} /></button>
       </nav>
       {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-3 border-t border-slate-800/80 px-3 py-2 md:hidden">
-        <Link href="/chat" className={`mobile-nav-link ${chatActive ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbetler</Link>
+        <Link href="/chat" className={`mobile-nav-link ${chatActive ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbet</Link>
         <Link href="/calls" className={`mobile-nav-link ${callsActive ? "mobile-nav-active" : ""}`}><Phone size={19} />Aramalar</Link>
         <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" className={`mobile-nav-link ${profileOpen ? "mobile-nav-active" : ""}`}><UserRound size={19} />Profil</button>
       </div>}
