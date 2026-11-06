@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, PhoneCall, PhoneIncoming, Plus, Trash2, Check } from "lucide-react";
+import { Phone, PhoneCall, PhoneIncoming, PhoneOutgoing, Plus, Trash2, Check } from "lucide-react";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 
@@ -20,7 +20,7 @@ export default function CallsPage() {
   const router = useRouter();
   const [term, setTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [calls] = useState<CallRecord[]>([]);
+  const [calls, setCalls] = useState<CallRecord[]>([]);
   const filteredCalls = useMemo(() => calls.filter((call) => call.name.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"))), [calls, term]);
   const selectedCall = calls.find((call) => call.id === selectedIds[0]) ?? null;
 
@@ -39,7 +39,7 @@ export default function CallsPage() {
           <header className="calls-heading flex h-[68px] shrink-0 items-center justify-between px-5">
             <h1 className="text-[19px] font-semibold text-slate-300">Aramalar</h1>
             <button type="button" onClick={() => router.push("/search")} aria-label="Yeni arama" title="Yeni arama" className="call-heading-action"><span className="relative inline-flex"><PhoneCall size={20} /><Plus size={11} className="absolute -right-1 -top-1 rounded-full bg-[#111a2d]" /></span></button>
-            <button type="button" disabled={selectedIds.length === 0} onClick={() => setSelectedIds([])} aria-label="Seçilen aramaları temizle" title="Seçilenleri sil" className="call-heading-action disabled:opacity-30"><Trash2 size={20} /></button>
+            <button type="button" disabled={selectedIds.length === 0} onClick={() => { setCalls((current) => current.filter((call) => !selectedIds.includes(call.id))); setSelectedIds([]); }} aria-label="Seçilen aramaları temizle" title="Seçilenleri sil" className="call-heading-action disabled:opacity-30"><Trash2 size={20} /></button>
           </header>
           <div className="chat-search-wrap shrink-0 px-5 pb-4">
             <label className="search-field chat-search-field"><span className="text-slate-400"><Phone size={17} /></span><input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ara" aria-label="Aramalarda ara" /></label>
@@ -49,9 +49,9 @@ export default function CallsPage() {
               <div key={call.id} className={`call-history-row ${selectedIds.includes(call.id) ? "call-history-row-selected" : ""}`}>
                 <button type="button" onClick={() => toggleSelected(call.id)} aria-label={selectedIds.includes(call.id) ? "Seçimi kaldır" : "Aramayı seç"} className="call-select"><span>{selectedIds.includes(call.id) ? <Check size={14} /> : null}</span></button>
                 <button type="button" onClick={() => setSelectedIds([call.id])} className="call-person min-w-0 flex-1 text-left">
-                  <span className="call-avatar"><PhoneIncoming size={18} /></span>
+                  <span className="call-avatar">{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
                   <span className="min-w-0 flex-1"><strong>{call.name}</strong><small>{call.direction === "incoming" ? "Gelen" : call.direction === "outgoing" ? "Giden" : "Cevapsız"} {call.kind === "voice" ? "sesli arama" : "görüntülü arama"}</small></span>
-                  <time>{new Date(call.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" })}</time>
+                  <time>{new Date(call.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time>
                 </button>
               </div>
             )) : <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-5 text-center">
