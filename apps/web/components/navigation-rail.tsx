@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, MessageCircle, Phone, X, Pencil, Check, ArrowLeft, UserRound } from "lucide-react";
+import { LogOut, MessageCircle, Phone, Bell, X, Pencil, Check, ArrowLeft, UserRound } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
@@ -24,6 +24,7 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const chatActive = pathname.startsWith("/chat");
   const callsActive = pathname.startsWith("/calls");
 
@@ -34,6 +35,52 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
       if (active && data) setProfile(data);
     });
     return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) { setUnreadNotifications(0); return; }
+    const userId = user.id;
+    let active = true;
+    const supabase = createBrowserSupabaseClient();
+
+    async function loadUnreadNotifications() {
+      const { data: memberships, error: membershipError } = await supabase
+        .from("conversation_members")
+        .select("conversation_id, last_read_at, unread_at")
+        .eq("user_id", userId)
+        .is("left_at", null);
+      if (membershipError || !active) return;
+
+      const counts = await Promise.all((memberships ?? []).map(async (membership) => {
+        const query = supabase.from("messages").select("id", { count: "exact", head: true })
+          .eq("conversation_id", membership.conversation_id).neq("sender_id", userId);
+        const { count, error: countError } = membership.last_read_at
+          ? await query.gt("created_at", membership.last_read_at)
+          : await query;
+        if (countError) return membership.unread_at ? 1 : 0;
+        return Math.max(count ?? 0, membership.unread_at ? 1 : 0);
+      }));
+      if (active) setUnreadNotifications(counts.reduce((total, count) => total + count, 0));
+    }
+
+    void loadUnreadNotifications();
+    const channel = supabase.channel("nav-notifications:" + userId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        const message = payload.new as { sender_id?: string };
+        if (message.sender_id !== userId) void loadUnreadNotifications();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "conversation_members", filter: "user_id=eq." + userId }, () => {
+        void loadUnreadNotifications();
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "conversation_members", filter: "user_id=eq." + userId }, () => {
+        void loadUnreadNotifications();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -62,12 +109,14 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
         <div className="flex flex-col items-center gap-4">
           <Link href="/chat" aria-label="Sohbet" title="Sohbet" data-tooltip="Sohbet" aria-current={chatActive ? "page" : undefined} className={`rail-link ${chatActive ? "rail-link-active" : ""}`}><MessageCircle size={21} /></Link>
           <Link href="/calls" aria-label="Aramalar" title="Aramalar" data-tooltip="Aramalar" aria-current={callsActive ? "page" : undefined} className={`rail-link ${callsActive ? "rail-link-active" : ""}`}><Phone size={21} /></Link>
+          <Link href="/chat" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} title="Bildirimler" data-tooltip="Bildirimler" className="rail-link notification-rail-link"><Bell size={21} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</Link>
         </div>
         <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" title="Profil" data-tooltip="Profil" className="rail-link mt-auto"><UserRound size={21} /></button>
       </nav>
-      {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-3 border-t border-slate-800/80 px-3 py-2 md:hidden">
+      {showMobileNav && <div className="mobile-bottom-nav grid grid-cols-4 border-t border-slate-800/80 px-3 py-2 md:hidden">
         <Link href="/chat" className={`mobile-nav-link ${chatActive ? "mobile-nav-active" : ""}`}><MessageCircle size={19} />Sohbet</Link>
         <Link href="/calls" className={`mobile-nav-link ${callsActive ? "mobile-nav-active" : ""}`}><Phone size={19} />Aramalar</Link>
+        <Link href="/chat" aria-label={`Bildirimler${unreadNotifications ? `, ${unreadNotifications} okunmamış` : ""}`} className="mobile-nav-link notification-mobile-link"><span className="notification-icon-wrap"><Bell size={19} />{unreadNotifications > 0 && <span className="nav-notification-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</span>Bildirimler</Link>
         <button type="button" onClick={() => { setProfileOpen(true); setEditing(false); setError(""); setNotice(""); }} aria-label="Profil" className={`mobile-nav-link ${profileOpen ? "mobile-nav-active" : ""}`}><UserRound size={19} />Profil</button>
       </div>}
 
