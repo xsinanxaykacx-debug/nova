@@ -43,6 +43,7 @@ export interface ConversationMember {
   pinned_at: ISODateString | null;
   favorite_at: ISODateString | null;
   unread_at: ISODateString | null;
+  last_read_at: ISODateString;
   cleared_at: ISODateString | null;
 }
 
