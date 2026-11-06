@@ -1340,3 +1340,54 @@ p, small, time, label, .conversation-status, .peer-profile-username,
   .chat-sidebar { width: 100% !important; }
   .calls-detail-panel { display: none !important; }
 }
+
+
+/* Son renk düzeltmesi: NOVA arayüzünde neon mavi/camgöbeği yok */
+:root {
+  --nova-accent: #AEB5C2 !important;
+}
+.navigation-rail .rail-link,
+.navigation-rail .rail-link:hover,
+.navigation-rail .rail-link:focus-visible,
+.navigation-rail .rail-link-active,
+.navigation-rail .rail-link-active:hover,
+.navigation-rail .rail-link svg,
+button svg, [role="button"] svg,
+.icon-button svg, .composer-icon-button,
+.chat-new-button svg, .call-heading-action svg,
+.nova-header-action svg, .mobile-nav-link svg,
+.text-sky-100, .text-sky-200, .text-sky-300,
+.text-sky-400, .text-sky-500,
+.new-chat-modal svg, .peer-profile-modal svg,
+.conversation-profile-card svg {
+  color: #AEB5C2 !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+.rail-link-active, .mobile-nav-active,
+.chat-list-item-active, .chat-filter-pill-active {
+  color: #E2E5EB !important;
+  background: #27344E !important;
+  border-color: #465064 !important;
+  box-shadow: none !important;
+}
+.avatar-ring, .rail-profile-avatar, .profile-panel-avatar,
+.conversation-profile-avatar, .peer-profile-avatar,
+.chat-list-avatar, .conversation-profile-card,
+.peer-profile-modal, .peer-profile-encryption,
+.chat-list-item-active, .chat-filter-pill,
+.chat-filter-pill-active, .security-pill,
+.conversation-profile-card:focus-visible,
+.navigation-rail .rail-link:focus-visible,
+.mobile-nav-active {
+  border-color: #465064 !important;
+  outline-color: #465064 !important;
+  box-shadow: none !important;
+}
+.unread-badge { background: #465064 !important; color: #F8FAFC !important; }
+.conversation-status-dot.is-live { background: #94A3B8 !important; box-shadow: none !important; }
+button:hover, button:focus, button:focus-visible,
+[role="button"]:focus-visible, input:focus, textarea:focus {
+  outline-color: #657087 !important;
+  box-shadow: none !important;
+}
