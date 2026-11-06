@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, PhonePlus, Trash2, PhoneIncoming, PhoneOutgoing, Check } from "lucide-react";
+import { Phone, PhoneCall, Plus, Trash2, Check } from "lucide-react";
 import { NavigationRail } from "@/components/navigation-rail";
 import { useAuth } from "@/components/auth-provider";
 
@@ -38,7 +38,7 @@ export default function CallsPage() {
         <aside className="calls-sidebar flex h-full min-h-0 min-w-0 flex-1 flex-col border-r border-slate-700/70 md:flex-none">
           <header className="calls-heading flex h-[68px] shrink-0 items-center justify-between px-5">
             <h1 className="text-[19px] font-semibold text-slate-300">Aramalar</h1>
-            <button type="button" onClick={() => router.push("/search")} aria-label="Yeni arama" title="Yeni arama" className="call-heading-action"><PhonePlus size={21} /></button>
+            <button type="button" onClick={() => router.push("/search")} aria-label="Yeni arama" title="Yeni arama" className="call-heading-action"><span className="relative inline-flex"><PhoneCall size={20} /><Plus size={11} className="absolute -right-1 -top-1 rounded-full bg-[#111a2d]" /></span></button>
             <button type="button" disabled={selectedIds.length === 0} onClick={() => setSelectedIds([])} aria-label="Seçilen aramaları temizle" title="Seçilenleri sil" className="call-heading-action disabled:opacity-30"><Trash2 size={20} /></button>
           </header>
           <div className="chat-search-wrap shrink-0 px-5 pb-4">
