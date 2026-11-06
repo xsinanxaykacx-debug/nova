@@ -14,8 +14,8 @@
   --nova-muted: #d7d7d7;
   --nova-subtle: #d7d7d7;
   --nova-white: #e3e3e3;
-  --nova-message-in: #3b3b3b;
-  --nova-message-out: #3b3b3b;
+  --nova-message-in: #263746;
+  --nova-message-out: #123b5d;
   --nova-message-out-text: #e3e3e3;
 }
 
@@ -843,7 +843,8 @@ button:disabled { cursor: not-allowed; }
 .nova-secondary-button { border-color: #3b3b3b; color: #e3e3e3; }
 .nova-secondary-button:hover { background: #3b3b3b; }
 
-.message-bubble-incoming, .message-bubble-outgoing { background: #3b3b3b; border-color: #3b3b3b; color: #e3e3e3; }
+.message-bubble-incoming { background: #263746; border-color: #385064; color: #e3e3e3; }
+.message-bubble-outgoing { background: #123b5d; border-color: #1f91eb; color: #e3e3e3; }
 .message-bubble-incoming time, .message-bubble-outgoing time { color: #d7d7d7; }
 .chat-wallpaper { background-color: #001122; background-image: radial-gradient(rgba(31,145,235,.16) .65px, transparent .65px); }
 .security-pill { background: #3b3b3b; border-color: #3b3b3b; color: #e3e3e3; }
