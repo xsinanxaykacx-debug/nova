@@ -145,7 +145,7 @@ export function useWebRTCCall(userId: string) {
     peerRef.current = pc;
     peerIdRef.current = remoteUserId;
     pc.onicecandidate = (event) => {
-      if (event.candidate) void sendBroadcast("signal", { call_id: callIdRef.current, sender_id: userId, receiver_id: peerIdRef.current, signal_type: "ice", payload: event.candidate.toJSON() } satisfies CallSignal).catch((cause) => {
+      if (event.candidate) void sendBroadcast("signal", { call_id: callIdRef.current, sender_id: userId, receiver_id: peerIdRef.current ?? "", signal_type: "ice", payload: event.candidate.toJSON() } satisfies CallSignal).catch((cause) => {
         setError(cause instanceof Error ? cause.message : "ICE sinyali gönderilemedi.");
       });
     };
@@ -252,7 +252,7 @@ export function useWebRTCCall(userId: string) {
       try {
         makingOfferRef.current = true;
         await pc.setLocalDescription();
-        await sendBroadcast("signal", { call_id: callId, sender_id: userId, receiver_id: receiverId, signal_type: "offer", payload: pc.localDescription } satisfies CallSignal);
+        await sendBroadcast("signal", { call_id: callId, sender_id: userId, receiver_id: receiverId, signal_type: "offer", payload: pc.localDescription as RTCSessionDescriptionInit } satisfies CallSignal);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
       } finally { makingOfferRef.current = false; }
