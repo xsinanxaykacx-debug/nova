@@ -15,12 +15,13 @@ export type IncomingCall = {
   created_at: string;
 };
 
+type SignalType = "offer" | "answer" | "ice" | "ready" | "hangup" | "reject";
 type CallSignal = {
   call_id: string;
   sender_id: string;
   receiver_id: string;
-  signal_type: "offer" | "answer" | "ice" | "hangup";
-  payload: RTCSessionDescriptionInit | RTCIceCandidateInit;
+  signal_type: SignalType;
+  payload: RTCSessionDescriptionInit | RTCIceCandidateInit | Record<string, never>;
 };
 
 type CallStatus = "idle" | "calling" | "ringing" | "connecting" | "connected";
@@ -41,9 +42,12 @@ export function useWebRTCCall(userId: string) {
   const peerIdRef = useRef<string | null>(null);
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
+  const politeRef = useRef(false);
+  const negotiationReadyRef = useRef(false);
+  const remoteReadyRef = useRef(false);
+  const readyAckSentRef = useRef(false);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
-  const pendingBroadcastRef = useRef<Array<{ event: string; payload: unknown }>>([]);
-  const skipNextNegotiationRef = useRef(false);
+  const localIceQueueRef = useRef<CallSignal[]>([]);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -56,19 +60,17 @@ export function useWebRTCCall(userId: string) {
     return supabaseRef.current;
   }, []);
 
-  const sendBroadcast = useCallback(async (event: string, payload: unknown) => {
+  const sendBroadcast = useCallback(async (payload: CallSignal) => {
     const channel = channelRef.current;
-    if (!channel) {
-      pendingBroadcastRef.current.push({ event, payload });
-      return;
-    }
-    const result = await channel.send({ type: "broadcast", event, payload });
+    if (!channel) throw new Error("Arama kanalı henüz hazır değil.");
+    const result = await channel.send({ type: "broadcast", event: "signal", payload });
     if (result !== "ok") throw new Error("Arama sinyali gönderilemedi.");
   }, []);
 
-  const flushPendingBroadcasts = useCallback(async () => {
-    const queued = pendingBroadcastRef.current.splice(0);
-    for (const item of queued) await sendBroadcast(item.event, item.payload);
+  const flushLocalIce = useCallback(async () => {
+    if (!remoteReadyRef.current) return;
+    const queued = localIceQueueRef.current.splice(0);
+    for (const signal of queued) await sendBroadcast(signal);
   }, [sendBroadcast]);
 
   const ensureMedia = useCallback(async (kind: CallKind) => {
@@ -113,8 +115,11 @@ export function useWebRTCCall(userId: string) {
     peerIdRef.current = null;
     makingOfferRef.current = false;
     ignoreOfferRef.current = false;
+    negotiationReadyRef.current = false;
+    remoteReadyRef.current = false;
+    readyAckSentRef.current = false;
     pendingIceRef.current = [];
-    pendingBroadcastRef.current = [];
+    localIceQueueRef.current = [];
     setLocalStream(null);
     setRemoteStream(null);
     setActiveCallId(null);
@@ -140,49 +145,114 @@ export function useWebRTCCall(userId: string) {
     for (const candidate of queued) await attachRemoteCandidate(candidate);
   }, [attachRemoteCandidate]);
 
-  const createPeer = useCallback((remoteUserId: string) => {
+  const createPeer = useCallback((remoteUserId: string, polite: boolean) => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     peerRef.current = pc;
     peerIdRef.current = remoteUserId;
+    politeRef.current = polite;
+    negotiationReadyRef.current = false;
+
     pc.onicecandidate = (event) => {
-      if (event.candidate) void sendBroadcast("signal", { call_id: callIdRef.current, sender_id: userId, receiver_id: peerIdRef.current ?? "", signal_type: "ice", payload: event.candidate.toJSON() } satisfies CallSignal).catch((cause) => {
-        setError(cause instanceof Error ? cause.message : "ICE sinyali gönderilemedi.");
-      });
+      if (!event.candidate || !callIdRef.current) return;
+      const signal: CallSignal = {
+        call_id: callIdRef.current,
+        sender_id: userId,
+        receiver_id: remoteUserId,
+        signal_type: "ice",
+        payload: event.candidate.toJSON(),
+      };
+      if (remoteReadyRef.current) {
+        void sendBroadcast(signal).catch((cause) => setError(cause instanceof Error ? cause.message : "ICE sinyali gönderilemedi."));
+      } else {
+        localIceQueueRef.current.push(signal);
+      }
     };
+
     pc.ontrack = (event) => {
       const stream = event.streams[0] ?? remoteStreamRef.current ?? new MediaStream();
-      if (!event.streams[0]) stream.addTrack(event.track);
+      if (!event.streams[0] && !stream.getTracks().some((track) => track.id === event.track.id)) {
+        stream.addTrack(event.track);
+      }
       remoteStreamRef.current = stream;
       setRemoteStream(stream);
     };
+
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") setStatus("connected");
       if (pc.connectionState === "failed") {
-        setError("Bağlantı kurulamadı. Ağın STUN bağlantısını engelliyor olabilir; TURN desteği gerekiyor.");
+        setError("Bağlantı kurulamadı. Bu ağ STUN bağlantısını engelliyor olabilir; TURN desteği gerekiyor.");
         setStatus("connecting");
       }
       if (pc.connectionState === "disconnected") setStatus("connecting");
     };
+
+    pc.onnegotiationneeded = async () => {
+      if (!negotiationReadyRef.current || pc.signalingState !== "stable" || !callIdRef.current) return;
+      try {
+        makingOfferRef.current = true;
+        await pc.setLocalDescription();
+        await sendBroadcast({
+          call_id: callIdRef.current,
+          sender_id: userId,
+          receiver_id: remoteUserId,
+          signal_type: "offer",
+          payload: pc.localDescription as RTCSessionDescriptionInit,
+        });
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
+      } finally {
+        makingOfferRef.current = false;
+      }
+    };
+
     return pc;
+  }, [sendBroadcast, userId]);
+
+  const announceReady = useCallback(async () => {
+    const callId = callIdRef.current;
+    const remoteUserId = peerIdRef.current;
+    if (!callId || !remoteUserId) return;
+    await sendBroadcast({
+      call_id: callId,
+      sender_id: userId,
+      receiver_id: remoteUserId,
+      signal_type: "ready",
+      payload: {},
+    });
   }, [sendBroadcast, userId]);
 
   const attachCallChannel = useCallback(async (callId: string, remoteUserId: string, polite: boolean) => {
     const channel = supabase().channel(`call:${callId}`, {
       config: { private: true, broadcast: { ack: true, self: false } },
     });
+
     channel.on("broadcast", { event: "signal" }, ({ payload }) => {
       const signal = payload as CallSignal;
-      if (signal.sender_id === userId || signal.call_id !== callId) return;
-      if (signal.signal_type === "hangup") {
+      if (signal.sender_id !== remoteUserId || signal.call_id !== callId) return;
+
+      if (signal.signal_type === "ready") {
+        remoteReadyRef.current = true;
+        void flushLocalIce().catch((cause) => setError(cause instanceof Error ? cause.message : "ICE adayları gönderilemedi."));
+        if (!readyAckSentRef.current) {
+          readyAckSentRef.current = true;
+          void announceReady().catch((cause) => setError(cause instanceof Error ? cause.message : "Arama hazır sinyali gönderilemedi."));
+        }
+        return;
+      }
+
+      if (signal.signal_type === "hangup" || signal.signal_type === "reject") {
+        if (signal.signal_type === "reject") setError("Karşı taraf aramayı reddetti.");
         void resetCall();
         return;
       }
+
       if (signal.signal_type === "ice") {
         void attachRemoteCandidate(signal.payload as RTCIceCandidateInit).catch((cause) => {
           setError(cause instanceof Error ? cause.message : "ICE adayı eklenemedi.");
         });
         return;
       }
+
       const description = signal.payload as RTCSessionDescriptionInit;
       const pc = peerRef.current;
       if (!pc) return;
@@ -195,120 +265,126 @@ export function useWebRTCCall(userId: string) {
         await flushRemoteCandidates();
         if (description.type === "offer") {
           await pc.setLocalDescription(await pc.createAnswer());
-          await sendBroadcast("signal", {
+          await sendBroadcast({
             call_id: callId,
             sender_id: userId,
             receiver_id: remoteUserId,
             signal_type: "answer",
-            payload: pc.localDescription,
-          } satisfies CallSignal);
+            payload: pc.localDescription as RTCSessionDescriptionInit,
+          });
         }
       })().catch((cause) => setError(cause instanceof Error ? cause.message : "Arama sinyali işlenemedi."));
     });
-    const result = await new Promise<string>((resolve, reject) => {
+
+    channelRef.current = channel;
+    await new Promise<void>((resolve, reject) => {
       channel.subscribe((state) => {
-        if (state === "SUBSCRIBED") resolve(state);
-        if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") reject(new Error("Arama sinyal kanalına bağlanılamadı."));
+        if (state === "SUBSCRIBED") resolve();
+        if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") {
+          reject(new Error("Arama sinyal kanalına bağlanılamadı."));
+        }
       });
     });
-    void result;
-    channelRef.current = channel;
-    await flushPendingBroadcasts();
     return channel;
-  }, [attachRemoteCandidate, flushRemoteCandidates, sendBroadcast, supabase, userId, resetCall]);
+  }, [announceReady, attachRemoteCandidate, flushLocalIce, flushRemoteCandidates, resetCall, sendBroadcast, supabase, userId]);
 
   const startCall = useCallback(async (receiverId: string, kind: CallKind) => {
     setError("");
-    if (receiverId === userId) throw new Error("Kendini arayamazsın.");
+    if (!receiverId || receiverId === userId) throw new Error("Geçerli bir kullanıcı seç.");
     const stream = await ensureMedia(kind);
     const callId = crypto.randomUUID();
-    const pc = createPeer(receiverId);
+    const polite = userId.localeCompare(receiverId) > 0;
+    const pc = createPeer(receiverId, polite);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     callIdRef.current = callId;
     setActiveCallId(callId);
     setStatus("calling");
 
-    makingOfferRef.current = true;
     try {
+      makingOfferRef.current = true;
       await pc.setLocalDescription(await pc.createOffer());
+      const seed: CallSignal = {
+        call_id: callId,
+        sender_id: userId,
+        receiver_id: receiverId,
+        signal_type: "offer",
+        payload: pc.localDescription as RTCSessionDescriptionInit,
+      };
+      const { error: insertError } = await supabase().from("call_signals").insert(seed);
+      if (insertError) throw new Error(`Arama başlatılamadı: ${insertError.message}`);
+      await attachCallChannel(callId, receiverId, polite);
+      await sendBroadcast(seed);
+      negotiationReadyRef.current = true;
+      await announceReady();
+    } catch (cause) {
+      await resetCall();
+      throw cause;
     } finally {
       makingOfferRef.current = false;
     }
-
-    const seed: CallSignal = {
-      call_id: callId,
-      sender_id: userId,
-      receiver_id: receiverId,
-      signal_type: "offer",
-      payload: pc.localDescription as RTCSessionDescriptionInit,
-    };
-    const { error: insertError } = await supabase().from("call_signals").insert(seed);
-    if (insertError) throw new Error(`Arama başlatılamadı: ${insertError.message}`);
-
-    await attachCallChannel(callId, receiverId, userId.localeCompare(receiverId) > 0);
-    await sendBroadcast("signal", seed);
-    pc.onnegotiationneeded = async () => {
-      if (pc.signalingState !== "stable") return;
-      try {
-        makingOfferRef.current = true;
-        await pc.setLocalDescription();
-        await sendBroadcast("signal", { call_id: callId, sender_id: userId, receiver_id: receiverId, signal_type: "offer", payload: pc.localDescription as RTCSessionDescriptionInit } satisfies CallSignal);
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
-      } finally { makingOfferRef.current = false; }
-    };
     return callId;
-  }, [attachCallChannel, createPeer, ensureMedia, sendBroadcast, supabase, userId]);
+  }, [announceReady, attachCallChannel, createPeer, ensureMedia, resetCall, sendBroadcast, supabase, userId]);
 
   const acceptCall = useCallback(async (call: IncomingCall, kind: CallKind) => {
     setError("");
     const stream = await ensureMedia(kind);
-    const pc = createPeer(call.sender_id);
+    const polite = userId.localeCompare(call.sender_id) > 0;
+    const pc = createPeer(call.sender_id, polite);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     callIdRef.current = call.call_id;
     setActiveCallId(call.call_id);
     setStatus("connecting");
-    await attachCallChannel(call.call_id, call.sender_id, userId.localeCompare(call.sender_id) > 0);
-    await pc.setRemoteDescription(new RTCSessionDescription(call.payload));
-    await flushRemoteCandidates();
-    await pc.setLocalDescription(await pc.createAnswer());
-    await sendBroadcast("signal", {
-      call_id: call.call_id,
-      sender_id: userId,
-      receiver_id: call.sender_id,
-      signal_type: "answer",
-      payload: pc.localDescription,
-    } satisfies CallSignal);
-    setIncomingCall(null);
-    skipNextNegotiationRef.current = true;
-    pc.onnegotiationneeded = async () => {
-      if (skipNextNegotiationRef.current) { skipNextNegotiationRef.current = false; return; }
-      if (pc.signalingState !== "stable") return;
-      try {
-        makingOfferRef.current = true;
-        await pc.setLocalDescription();
-        await sendBroadcast("signal", { call_id: call.call_id, sender_id: userId, receiver_id: call.sender_id, signal_type: "offer", payload: pc.localDescription } satisfies CallSignal);
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
-      } finally { makingOfferRef.current = false; }
-    };
-  }, [attachCallChannel, createPeer, ensureMedia, flushRemoteCandidates, sendBroadcast, userId]);
+
+    try {
+      await attachCallChannel(call.call_id, call.sender_id, polite);
+      await announceReady();
+      await pc.setRemoteDescription(new RTCSessionDescription(call.payload));
+      await flushRemoteCandidates();
+      await pc.setLocalDescription(await pc.createAnswer());
+      await sendBroadcast({
+        call_id: call.call_id,
+        sender_id: userId,
+        receiver_id: call.sender_id,
+        signal_type: "answer",
+        payload: pc.localDescription as RTCSessionDescriptionInit,
+      });
+      negotiationReadyRef.current = true;
+      setIncomingCall(null);
+    } catch (cause) {
+      await resetCall();
+      throw cause;
+    }
+  }, [announceReady, attachCallChannel, createPeer, ensureMedia, flushRemoteCandidates, resetCall, sendBroadcast, userId]);
 
   const rejectCall = useCallback(async (call: IncomingCall) => {
-    await supabase().from("call_signals").delete().eq("id", call.id);
-    setIncomingCall(null);
-  }, [supabase]);
+    try {
+      const polite = userId.localeCompare(call.sender_id) > 0;
+      callIdRef.current = call.call_id;
+      peerIdRef.current = call.sender_id;
+      await attachCallChannel(call.call_id, call.sender_id, polite);
+      await sendBroadcast({
+        call_id: call.call_id,
+        sender_id: userId,
+        receiver_id: call.sender_id,
+        signal_type: "reject",
+        payload: {},
+      });
+    } finally {
+      await supabase().from("call_signals").delete().eq("id", call.id);
+      await resetCall();
+    }
+  }, [attachCallChannel, resetCall, sendBroadcast, supabase, userId]);
 
   const hangUp = useCallback(async () => {
     const callId = callIdRef.current;
-    if (callId) {
-      await sendBroadcast("signal", {
+    if (callId && peerIdRef.current) {
+      await sendBroadcast({
         call_id: callId,
         sender_id: userId,
         receiver_id: peerIdRef.current,
         signal_type: "hangup",
         payload: {},
-      });
+      }).catch(() => undefined);
       await supabase().from("call_signals").delete().eq("call_id", callId);
     }
     await resetCall();
