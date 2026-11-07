@@ -42,7 +42,8 @@ export function useWebRTCCall(userId: string) {
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
-  const pendingBroadcastRef = useRef<Array<{ event: string; payload: unknown }>>([]);\n  const skipNextNegotiationRef = useRef(false);
+  const pendingBroadcastRef = useRef<Array<{ event: string; payload: unknown }>>([]);
+  const skipNextNegotiationRef = useRef(false);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -175,7 +176,8 @@ export function useWebRTCCall(userId: string) {
       if (signal.signal_type === "hangup") {
         void resetCall();
         return;
-      }\n      if (signal.signal_type === "ice") {
+      }
+      if (signal.signal_type === "ice") {
         void attachRemoteCandidate(signal.payload as RTCIceCandidateInit).catch((cause) => {
           setError(cause instanceof Error ? cause.message : "ICE adayı eklenemedi.");
         });
