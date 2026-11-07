@@ -192,13 +192,15 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);\n  const [mediaActionOpen, setMediaActionOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [mediaActionOpen, setMediaActionOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<Blob | null>(null);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState("");
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);\n  const galleryImageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryImageInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recorderChunksRef = useRef<BlobPart[]>([]);
@@ -770,7 +772,8 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
         </div>
 
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} aria-label="Gönderilecek dosyayı seç" />\n        <input ref={galleryImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleGalleryImageSelected} aria-label="Galeriden fotoğraf seç" />
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} aria-label="Gönderilecek dosyayı seç" />
+        <input ref={galleryImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleGalleryImageSelected} aria-label="Galeriden fotoğraf seç" />
         <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
           <button type="button" disabled={!cryptoReady || sending || groupKeyRotationRequired} onClick={() => setMediaActionOpen(true)} aria-label="Fotoğraf ekle" title="Fotoğraf ekle" className="composer-icon-button composer-send-leading disabled:cursor-not-allowed disabled:opacity-40"><Camera size={21} /></button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
