@@ -7,7 +7,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "NOVA CHAT",
   description: "Connect. Chat. Share.",
-  manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
@@ -19,6 +18,10 @@ export default function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="tr" className="dark">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#001122" />
+      </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
         <ServiceWorkerRegister />
