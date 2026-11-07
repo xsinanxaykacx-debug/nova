@@ -17,6 +17,9 @@ create index if not exists call_signals_receiver_id_idx
 
 alter table public.call_signals enable row level security;
 
+-- New Supabase projects no longer expose public tables to the Data API by default.
+grant select, insert, delete on table public.call_signals to authenticated;
+
 create policy "Call participants can read their signals"
   on public.call_signals for select
   to authenticated
@@ -40,8 +43,9 @@ create policy "Call participants can receive private call broadcasts"
     exists (
       select 1
       from public.call_signals cs
-      where cs.call_id::text = split_part(realtime.topic(), ':', 2)
+      where cs.call_id::text = split_part((select realtime.topic()), ':', 2)
         and auth.uid() in (cs.sender_id, cs.receiver_id)
+        and realtime.messages.extension = 'broadcast'
     )
   );
 
@@ -52,7 +56,7 @@ create policy "Call participants can send private call broadcasts"
     exists (
       select 1
       from public.call_signals cs
-      where cs.call_id::text = split_part(realtime.topic(), ':', 2)
+      where cs.call_id::text = split_part((select realtime.topic()), ':', 2)
         and auth.uid() in (cs.sender_id, cs.receiver_id)
     )
   );
