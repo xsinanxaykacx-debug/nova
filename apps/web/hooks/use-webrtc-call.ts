@@ -26,10 +26,34 @@ type CallSignal = {
 
 type CallStatus = "idle" | "calling" | "ringing" | "connecting" | "connected";
 
-const ICE_SERVERS: RTCIceServer[] = [
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
+
+async function getIceServers(): Promise<RTCIceServer[]> {
+  try {
+    const response = await fetch("/api/turn/credentials", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) throw new Error(`TURN credentials endpoint returned ${response.status}`);
+    const data = await response.json() as { iceServers?: RTCIceServer[] };
+    const turnServers = Array.isArray(data.iceServers)
+      ? data.iceServers.filter((server) => {
+          if (!server || !server.urls) return false;
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+          return urls.some((url) => typeof url === "string" && !/:53(?:\?|$)/.test(url));
+        })
+      : [];
+    if (turnServers.length === 0) throw new Error("Cloudflare TURN returned no usable ICE servers.");
+    return [...FALLBACK_ICE_SERVERS, ...turnServers];
+  } catch (cause) {
+    console.warn("[NOVA WebRTC] Cloudflare TURN unavailable; using STUN fallback.", cause);
+    return FALLBACK_ICE_SERVERS;
+  }
+}
 
 export function useWebRTCCall(userId: string, incomingSignalId?: string | null, cancelledCallId?: string | null, cancelledSignalType?: "hangup" | "reject" | null) {
   const supabaseRef = useRef<SupabaseClient | null>(null);
@@ -144,8 +168,9 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null, 
     for (const candidate of queued) await attachRemoteCandidate(candidate);
   }, [attachRemoteCandidate]);
 
-  const createPeer = useCallback((remoteUserId: string, polite: boolean) => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
+  const createPeer = useCallback(async (remoteUserId: string, polite: boolean) => {
+    const iceServers = await getIceServers();
+    const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 4 });
     peerRef.current = pc;
     peerIdRef.current = remoteUserId;
     negotiationReadyRef.current = false;
@@ -292,7 +317,7 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null, 
     const stream = await ensureMedia(kind);
     const callId = crypto.randomUUID();
     const polite = userId.localeCompare(receiverId) > 0;
-    const pc = createPeer(receiverId, polite);
+    const pc = await createPeer(receiverId, polite);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     callIdRef.current = callId;
     setActiveCallId(callId);
@@ -332,7 +357,7 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null, 
     setError("");
     const stream = await ensureMedia(kind);
     const polite = userId.localeCompare(call.sender_id) > 0;
-    const pc = createPeer(call.sender_id, polite);
+    const pc = await createPeer(call.sender_id, polite);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     callIdRef.current = call.call_id;
     setActiveCallId(call.call_id);
