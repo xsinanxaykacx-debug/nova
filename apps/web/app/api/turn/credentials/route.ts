@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
         return {
           ...server,
-          urls: urls.filter((url) => typeof url === "string" && !/:53(?:\\?|$)/.test(url)),
+          urls: urls.filter((url) => typeof url === "string" && !/:53(?:\?|$)/.test(url)),
         };
       })
       .filter((server) => Array.isArray(server.urls) && server.urls.length > 0);
