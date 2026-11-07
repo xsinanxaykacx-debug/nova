@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Mic,
@@ -69,9 +69,11 @@ function VideoSurface({
   return <video ref={videoRef} autoPlay playsInline muted={muted} className={className} />;
 }
 
-export default function CallsPage() {
+function CallsPageContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const incomingSignalId = searchParams.get("incoming");
   const {
     incomingCall,
     status,
@@ -84,7 +86,7 @@ export default function CallsPage() {
     rejectCall,
     hangUp,
     setError,
-  } = useWebRTCCall(user?.id ?? "");
+  } = useWebRTCCall(user?.id ?? "", incomingSignalId);
 
   const [term, setTerm] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -436,5 +438,13 @@ export default function CallsPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function CallsPage() {
+  return (
+    <Suspense fallback={<main className="flex h-[100dvh] items-center justify-center bg-[#0f172a] text-sm text-slate-400">Aramalar yükleniyor...</main>}>
+      <CallsPageContent />
+    </Suspense>
   );
 }

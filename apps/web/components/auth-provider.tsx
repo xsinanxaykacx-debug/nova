@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { MessagePayload } from "firebase/messaging";
 import { getToken, onMessage } from "firebase/messaging";
 import type { Session, User } from "@supabase/supabase-js";
@@ -72,6 +73,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const userId = session?.user?.id;
+  const router = useRouter();
+
+  // Subscribe once at the authenticated app shell so incoming calls are not
+  // missed when the recipient is on a different page or conversation.
+  useEffect(() => {
+    if (!userId) return;
+    const supabase = createBrowserSupabaseClient();
+    const channel = supabase.channel(`incoming-call-router:${userId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "call_signals",
+        filter: `receiver_id=eq.${userId}`,
+      }, (event) => {
+        const row = event.new as { id: string; sender_id: string; receiver_id: string; signal_type: string };
+        if (row.signal_type !== "offer" || row.sender_id === userId || row.receiver_id !== userId) return;
+        if (window.location.pathname !== "/calls") {
+          router.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+        }
+      })
+      .subscribe((status, subscriptionError) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          console.error("Global incoming-call subscription failed:", status, subscriptionError);
+        }
+      });
+    return () => { void supabase.removeChannel(channel); };
+  }, [router, userId]);
 
   useEffect(() => {
     if (!userId) {
