@@ -75,6 +75,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   return <ChatRoom
     conversationId={conversation.id}
     currentUserId={user.id}
+    peerUserId={peerProfile?.id}
     conversationType="direct"
     peerPublicKey={peerProfile?.public_key ?? null}
     peerName={peerProfile?.display_name || peerProfile?.username || "NOVA kullanıcısı"}

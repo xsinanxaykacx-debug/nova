@@ -79,6 +79,7 @@ type GroupParticipant = { id: string; display_name: string; username: string; av
 type ChatRoomProps = {
   conversationId: string;
   currentUserId: string;
+  peerUserId?: string;
   conversationType: "direct" | "group";
   peerPublicKey: string | null;
   peerName: string;
@@ -109,7 +110,7 @@ function initials(name: string) {
   return name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase() || "N";
 }
 
-export function ChatRoom({ conversationId, currentUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
+export function ChatRoom({ conversationId, currentUserId, peerUserId, conversationType, peerPublicKey, peerName, peerUsername, peerAvatarUrl, groupKeyEpochs = EMPTY_GROUP_KEY_EPOCHS, groupKeyVersion = 1, groupRole = "member", groupKeyRotationRequired = false, groupMemberCount, groupParticipants = [], initialMessages }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string, string>>({});
   const [legacyMessages, setLegacyMessages] = useState<Record<string, boolean>>({});
@@ -550,7 +551,7 @@ export function ChatRoom({ conversationId, currentUserId, conversationType, peer
               <div className="min-w-0"><h1 className="truncate text-base font-semibold text-slate-100">{peerName}</h1><p className="mt-1 truncate text-xs text-slate-300">{conversationType === "group" ? `${groupMemberCount ?? groupParticipants.length} üye` : peerUsername ? "@" + peerUsername : "NOVA kullanıcısı"}</p><p className="conversation-status mt-1 flex items-center gap-1.5 text-[11px]"><span className={`conversation-status-dot ${connection === "live" ? "is-live" : connection === "error" ? "is-error" : ""}`} />{connection === "live" ? "Çevrimiçi" : connection === "error" ? "Ba\u011Flant\u0131 sorunu" : "Ba\u011Flan\u0131yor"}</p></div>
             </button>
           </div>
-          <div className="chat-header-actions flex items-center gap-2"><span className={`mr-1 hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "text-slate-300" : "text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span><button type="button" disabled aria-label="Arama" title="Arama" className="nova-header-action"><Phone size={16} /></button><button type="button" onClick={() => setProfileOpen(true)} aria-label="Profil" title="Profil" className="nova-header-action"><UserRound size={16} /></button></div>
+          <div className="chat-header-actions flex items-center gap-2"><span className={`mr-1 hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] sm:inline-flex ${cryptoReady ? "text-slate-300" : "text-slate-500"}`}><LockKeyhole size={12} />{cryptoReady ? "Uçtan uca şifreli" : "Şifreleme hazırlanıyor"}</span><button type="button" onClick={() => { if (conversationType === "direct" && peerUserId) router.push(`/calls?user=${encodeURIComponent(peerUserId)}&kind=voice`); }} disabled={conversationType !== "direct" || !peerUserId} aria-label="Sesli ara" title={conversationType === "direct" ? "Sesli ara" : "Grup aramas\u0131 kullan\u0131lam\u0131yor"} className="nova-header-action disabled:cursor-not-allowed disabled:opacity-40"><Phone size={16} /></button><button type="button" onClick={() => setProfileOpen(true)} aria-label="Profil" title="Profil" className="nova-header-action"><UserRound size={16} /></button></div>
         </header>
 
         <div className="chat-wallpaper min-h-0 flex-1 overflow-y-auto px-3 py-5 sm:px-8 sm:py-7" aria-live="polite" aria-label="Şifreli mesaj geçmişi">
