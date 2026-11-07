@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   Loader2,
   Mic,
   MicOff,
@@ -39,6 +40,7 @@ type CallRecord = {
   callerName: string;
   calleeName: string;
   direction: "incoming" | "outgoing";
+  peerId: string;
   kind: CallKind;
   status: "ringing" | "answered" | "rejected" | "missed";
   createdAt: string;
@@ -92,6 +94,7 @@ function CallsPageContent() {
   } = useWebRTCCall(user?.id ?? "", incomingSignalId, cancelledCallId, cancelledSignalType === "hangup" || cancelledSignalType === "reject" ? cancelledSignalType : null);
 
   const [term, setTerm] = useState("");
+  const [mobilePanel, setMobilePanel] = useState<"list" | "detail">("list");
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
   const [historyActionError, setHistoryActionError] = useState("");
@@ -137,7 +140,8 @@ function CallsPageContent() {
       const callerName = names.get(row.caller_id) || "NOVA kullanıcısı";
       const calleeName = names.get(row.callee_id) || "NOVA kullanıcısı";
       return { id: row.id, name: outgoing ? calleeName : callerName, callerName, calleeName,
-        direction: outgoing ? "outgoing" : "incoming", kind: row.call_type, status: row.status, createdAt: row.started_at } as CallRecord;
+        direction: outgoing ? "outgoing" : "incoming", peerId: outgoing ? row.callee_id : row.caller_id,
+        kind: row.call_type, status: row.status, createdAt: row.started_at } as CallRecord;
     }));
     setHistoryError("");
     setHistoryLoading(false);
@@ -214,6 +218,7 @@ function CallsPageContent() {
 
   useEffect(() => {
     if (!incomingCall) return;
+    setMobilePanel("detail");
     const known = profiles.find((profile) => profile.id === incomingCall.sender_id);
     if (known) {
       setActivePeer(known);
@@ -257,6 +262,7 @@ function CallsPageContent() {
         const profile = data as Profile;
         if (profile.id === currentUserId) throw new Error("Kendini arayamazs\u0131n.");
         setActivePeer(profile);
+        setMobilePanel("detail");
         await startCall(profile.id, kind);
       } catch (cause) {
         if (!active) return;
@@ -297,12 +303,14 @@ function CallsPageContent() {
   }
 
   async function openUserSearch() {
+    setMobilePanel("detail");
     setSearchOpen(true);
     setSearchTerm("");
     if (profiles.length === 0) await loadProfiles();
   }
 
   async function callUser(profile: Profile, kind: CallKind) {
+    setMobilePanel("detail");
     setBusy(true);
     setError("");
     setActivePeer(profile);
@@ -375,7 +383,7 @@ function CallsPageContent() {
   return (
     <main className="chat-app-shell flex h-[100dvh] min-h-[560px] overflow-hidden text-slate-100">
       <NavigationRail />
-      <aside className="calls-sidebar hidden h-full min-h-0 w-[320px] shrink-0 flex-col border-r border-slate-700/70 md:flex">
+      <aside className={`calls-sidebar ${mobilePanel === "list" ? "flex" : "hidden"} h-full min-h-0 w-[320px] shrink-0 flex-col border-r border-slate-700/70 md:flex`}>
         <header className="calls-heading flex h-[68px] shrink-0 items-center justify-between px-5">
           <h1 className="text-[19px] font-semibold text-slate-300">Aramalar</h1>
           <div className="flex items-center gap-2">
@@ -397,11 +405,12 @@ function CallsPageContent() {
           {historyActionError && <p role="alert" className="mb-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{historyActionError}</p>}
           {filteredCalls.length ? filteredCalls.map((call) => (
             <div key={call.id} className="call-history-row">
-              <div className="call-person min-w-0 flex-1 text-left">
-                <span className="call-avatar">{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
-                <span className="min-w-0 flex-1"><strong>{call.callerName} → {call.calleeName}</strong><small>{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
-                <time>{new Date(call.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</time>
-              </div>
+              <button type="button" onClick={() => { setActivePeer({ id: call.peerId, username: "", display_name: call.name, avatar_url: null }); setMobilePanel("detail"); }}
+                className="call-person min-w-0 flex-1 text-left">
+                <span className="call-avatar shrink-0">{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
+                <span className="min-w-0 flex-1 overflow-hidden"><strong className="block truncate">{call.callerName} → {call.calleeName}</strong><small className="block truncate">{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
+                <time className="shrink-0 whitespace-nowrap">{new Date(call.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</time>
+              </button>
               <button type="button" onClick={() => void deleteCallHistoryEntry(call)}
                 disabled={clearingHistory || deletingCallId !== null}
                 aria-label="Arama kaydını sil" title="Arama kaydını sil"
@@ -418,7 +427,13 @@ function CallsPageContent() {
         </section>
       </aside>
 
-      <section className="calls-detail-panel relative flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 py-6 md:px-8">
+      <section className={`calls-detail-panel relative min-w-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 py-6 md:px-8 ${mobilePanel === "detail" ? "flex" : "hidden"} md:flex`}>
+        {!isCallActive && !incomingCall && (
+          <button type="button" onClick={() => setMobilePanel("list")} aria-label="Arama listesine dön"
+            className="absolute left-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-slate-900/80 text-slate-200 md:hidden">
+            <ArrowLeft size={19} />
+          </button>
+        )}
         {isCallActive ? (
           <div className="flex h-full w-full max-w-5xl flex-col">
             <header className="flex shrink-0 items-center justify-between py-3">
@@ -449,10 +464,10 @@ function CallsPageContent() {
               {!hasLocalVideo && <video ref={localVideoRef} autoPlay muted playsInline className="hidden" />}
               {status !== "connected" && <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/40 px-3 py-2 text-xs text-slate-300"><Loader2 size={14} className="animate-spin" /> Bağlantı bekleniyor</div>}
             </div>
-            <div className="flex shrink-0 items-center justify-center gap-3 py-6">
-              <button type="button" onClick={toggleMicrophone} aria-label={micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"} title={micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"} className={`flex h-12 items-center justify-center gap-2 rounded-full border px-4 text-xs font-medium ${micEnabled ? "border-white/10 bg-white/10 text-white" : "border-rose-400/40 bg-rose-500/20 text-rose-200"}`}>{micEnabled ? <Mic size={18} /> : <MicOff size={18} />}{micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"}</button>
-              <button type="button" onClick={toggleCamera} disabled={!hasLocalVideo} aria-label={cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"} title={cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"} className={`flex h-12 items-center justify-center gap-2 rounded-full border px-4 text-xs font-medium disabled:opacity-30 ${cameraEnabled ? "border-white/10 bg-white/10 text-white" : "border-rose-400/40 bg-rose-500/20 text-rose-200"}`}>{cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}{cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"}</button>
-              <button type="button" onClick={() => void endCall()} disabled={busy} aria-label="Aramayı Bitir" title="Aramayı Bitir" className="flex h-12 min-w-28 items-center justify-center gap-2 rounded-full bg-rose-600 px-5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"><PhoneOff size={18} /> Aramayı Bitir</button>
+            <div className="mx-auto flex w-full max-w-[360px] shrink-0 flex-wrap items-center justify-center gap-2 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:max-w-none md:flex-nowrap md:gap-3 md:py-6 md:pb-6">
+              <button type="button" onClick={toggleMicrophone} aria-label={micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"} title={micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"} className={`flex h-12 min-w-0 basis-[calc(50%-0.25rem)] items-center justify-center gap-2 rounded-full border px-2 text-[11px] font-medium sm:px-4 sm:text-xs md:basis-auto ${micEnabled ? "border-white/10 bg-white/10 text-white" : "border-rose-400/40 bg-rose-500/20 text-rose-200"}`}>{micEnabled ? <Mic size={18} /> : <MicOff size={18} />}{micEnabled ? "Mikrofonu Kapat" : "Mikrofonu Aç"}</button>
+              <button type="button" onClick={toggleCamera} disabled={!hasLocalVideo} aria-label={cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"} title={cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"} className={`flex h-12 min-w-0 basis-[calc(50%-0.25rem)] items-center justify-center gap-2 rounded-full border px-2 text-[11px] font-medium sm:px-4 sm:text-xs md:basis-auto disabled:opacity-30 ${cameraEnabled ? "border-white/10 bg-white/10 text-white" : "border-rose-400/40 bg-rose-500/20 text-rose-200"}`}>{cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}{cameraEnabled ? "Kamerayı Kapat" : "Kamerayı Aç"}</button>
+              <button type="button" onClick={() => void endCall()} disabled={busy} aria-label="Aramayı Bitir" title="Aramayı Bitir" className="flex h-12 basis-full items-center justify-center gap-2 rounded-full bg-rose-600 px-5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50 md:basis-auto"><PhoneOff size={18} /> Aramayı Bitir</button>
             </div>
           </div>
         ) : incomingCall ? (
