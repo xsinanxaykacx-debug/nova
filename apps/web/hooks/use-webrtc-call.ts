@@ -44,7 +44,7 @@ async function getIceServers(): Promise<RTCIceServer[]> {
       ? data.iceServers.filter((server) => {
           if (!server || !server.urls) return false;
           const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-          return urls.some((url) => typeof url === "string" && !/:53(?:\\?|$)/.test(url));
+          return urls.some((url) => typeof url === "string" && !/:53(?:\?|$)/.test(url));
         })
       : [];
     if (turnServers.length === 0) throw new Error("Cloudflare TURN returned no usable ICE servers.");
