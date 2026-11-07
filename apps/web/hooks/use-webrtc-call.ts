@@ -19,7 +19,7 @@ type CallSignal = {
   call_id: string;
   sender_id: string;
   receiver_id: string;
-  signal_type: "offer" | "answer" | "ice";
+  signal_type: "offer" | "answer" | "ice" | "hangup";
   payload: RTCSessionDescriptionInit | RTCIceCandidateInit;
 };
 
@@ -42,7 +42,7 @@ export function useWebRTCCall(userId: string) {
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
-  const pendingBroadcastRef = useRef<Array<{ event: string; payload: unknown }>>([]);
+  const pendingBroadcastRef = useRef<Array<{ event: string; payload: unknown }>>([]);\n  const skipNextNegotiationRef = useRef(false);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -172,7 +172,7 @@ export function useWebRTCCall(userId: string) {
     channel.on("broadcast", { event: "signal" }, ({ payload }) => {
       const signal = payload as CallSignal;
       if (signal.sender_id === userId || signal.call_id !== callId) return;
-      if (signal.signal_type === "ice") {
+      if (signal.signal_type === "hangup") {\n        void resetCall();\n        return;\n      }\n      if (signal.signal_type === "ice") {
         void attachRemoteCandidate(signal.payload as RTCIceCandidateInit).catch((cause) => {
           setError(cause instanceof Error ? cause.message : "ICE adayı eklenemedi.");
         });
@@ -210,7 +210,7 @@ export function useWebRTCCall(userId: string) {
     channelRef.current = channel;
     await flushPendingBroadcasts();
     return channel;
-  }, [attachRemoteCandidate, flushPendingCandidates = flushRemoteCandidates, sendBroadcast, supabase, userId]);
+  }, [attachRemoteCandidate, flushRemoteCandidates, sendBroadcast, supabase, userId, resetCall]);
 
   const startCall = useCallback(async (receiverId: string, kind: CallKind) => {
     setError("");
