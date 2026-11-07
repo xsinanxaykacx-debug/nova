@@ -43,7 +43,7 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-12">
       <section className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-sky-950/20">
-        <Link href="/" className="text-sm font-semibold text-sky-300">← NOVA CHAT</Link>
+        <Link href="/" className="text-sm font-semibold text-sky-300">← NABER</Link>
         <p className="mt-8 text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">Tekrar hoş geldin</p>
         <h1 className="mt-3 text-3xl font-semibold text-white">Giriş yap</h1>
         <p className="mt-2 text-sm text-slate-400">Hesabına e-posta adresinle eriş.</p>
