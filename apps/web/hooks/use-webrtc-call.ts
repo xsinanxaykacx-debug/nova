@@ -46,6 +46,7 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
   const remoteReadyRef = useRef(false);
   const readyAckSentRef = useRef(false);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const cancelledCallIdsRef = useRef(new Set<string>());
   const localIceQueueRef = useRef<CallSignal[]>([]);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
@@ -369,6 +370,10 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
       callIdRef.current = call.call_id;
       peerIdRef.current = call.sender_id;
       await attachCallChannel(call.call_id, call.sender_id, polite);
+      const { error: signalError } = await supabase().from("call_signals").insert({
+        call_id: call.call_id, sender_id: userId, receiver_id: call.sender_id, signal_type: "reject", payload: {},
+      });
+      if (signalError) setError("Arama reddetme sinyali gönderilemedi: " + signalError.message);
       await sendBroadcast({
         call_id: call.call_id,
         sender_id: userId,
@@ -377,7 +382,6 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
         payload: {},
       });
     } finally {
-      await supabase().from("call_signals").delete().eq("id", call.id);
       await resetCall();
     }
   }, [attachCallChannel, resetCall, sendBroadcast, supabase, userId]);
@@ -390,6 +394,12 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
       if (missedError) setError("Arama geçmişi güncellenemedi: " + missedError.message);
       const { error: endedError } = await supabase().from("call_history").update({ ended_at: endedAt }).eq("call_id", callId).eq("status", "answered");
       if (endedError) setError("Arama bitiş zamanı kaydedilemedi: " + endedError.message);
+      if (peerIdRef.current) {
+        const { error: signalError } = await supabase().from("call_signals").insert({
+          call_id: callId, sender_id: userId, receiver_id: peerIdRef.current, signal_type: "hangup", payload: {},
+        });
+        if (signalError) setError("Arama bitiş sinyali gönderilemedi: " + signalError.message);
+      }
     }
     if (callId && peerIdRef.current) {
       await sendBroadcast({
@@ -399,7 +409,6 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
         signal_type: "hangup",
         payload: {},
       }).catch(() => undefined);
-      await supabase().from("call_signals").delete().eq("call_id", callId);
     }
     await resetCall();
   }, [resetCall, sendBroadcast, supabase, userId]);
@@ -414,19 +423,33 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
       .eq("receiver_id", userId)
       .eq("signal_type", "offer")
       .maybeSingle()
-      .then(({ data, error: lookupError }) => {
+      .then(async ({ data, error: lookupError }) => {
         if (!active) return;
         if (lookupError) {
           setError("Gelen arama alınamadı: " + lookupError.message);
           return;
         }
-        if (data && data.sender_id !== userId) {
-          setIncomingCall(data as IncomingCall);
-          setStatus("ringing");
-          const url = new URL(window.location.href);
-          url.searchParams.delete("incoming");
-          window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+        if (!data || data.sender_id === userId) return;
+        const { data: terminalSignals, error: terminalLookupError } = await supabase()
+          .from("call_signals")
+          .select("id")
+          .eq("call_id", data.call_id)
+          .in("signal_type", ["hangup", "reject"])
+          .limit(1);
+        if (!active) return;
+        if (terminalLookupError) {
+          setError("Arama durumu kontrol edilemedi: " + terminalLookupError.message);
+          return;
         }
+        if (terminalSignals?.length || cancelledCallIdsRef.current.has(data.call_id)) {
+          await supabase().from("call_signals").delete().eq("call_id", data.call_id);
+          return;
+        }
+        setIncomingCall(data as IncomingCall);
+        setStatus("ringing");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("incoming");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
       });
     return () => { active = false; };
   }, [incomingSignalId, supabase, userId]);
@@ -440,9 +463,21 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
         table: "call_signals",
         filter: `receiver_id=eq.${userId}`,
       }, (event) => {
-        const row = event.new as IncomingCall;
-        if (row.signal_type === "offer" && row.sender_id !== userId) {
-          setIncomingCall(row);
+        const row = event.new as CallSignal & { id?: string };
+        if (row.signal_type === "hangup" || row.signal_type === "reject") {
+          cancelledCallIdsRef.current.add(row.call_id);
+          if (callIdRef.current === row.call_id) {
+            if (row.signal_type === "reject") setError("Karşı taraf aramayı reddetti.");
+            void resetCall();
+          } else {
+            setIncomingCall((current) => current?.call_id === row.call_id ? null : current);
+            setStatus((current) => current === "ringing" ? "idle" : current);
+          }
+          void supabase().from("call_signals").delete().eq("call_id", row.call_id).eq("signal_type", row.signal_type);
+          return;
+        }
+        if (row.signal_type === "offer" && row.sender_id !== userId && !cancelledCallIdsRef.current.has(row.call_id)) {
+          setIncomingCall(row as IncomingCall);
           setStatus("ringing");
         }
       })
@@ -457,7 +492,7 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
       if (incomingChannelRef.current) void supabase().removeChannel(incomingChannelRef.current);
       incomingChannelRef.current = null;
     };
-  }, [supabase, userId]);
+  }, [resetCall, supabase, userId]);
 
   return {
     incomingCall,
