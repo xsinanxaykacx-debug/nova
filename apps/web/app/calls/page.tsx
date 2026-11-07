@@ -485,7 +485,7 @@ function CallsPageContent() {
           <div className="flex w-full max-w-md flex-col items-center text-center">
             <div className="flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/15 bg-cyan-400/10 text-cyan-200"><PhoneCall size={38} strokeWidth={1.4} /></div>
             <h2 className="mt-7 text-2xl font-semibold text-white">NOVA Aramalar</h2>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">Kişilerinden birini seçerek güvenli sesli veya görüntülü görüşme başlat.</p>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">{activePeer ? `${peerName} ile güvenli sesli veya görüntülü görüşme başlat.` : "Kişilerinden birini seçerek güvenli sesli veya görüntülü görüşme başlat."}</p>
             <button type="button" onClick={() => void openUserSearch()} className="mt-7 flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-400"><Search size={18} /> Kullanıcı Ara</button>
             <p className="mt-4 text-xs text-slate-500">Ses ve görüntü WebRTC üzerinden eşten eşe iletilir.</p>
           </div>
