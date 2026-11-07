@@ -37,3 +37,7 @@ execute function public.guard_call_history_personal_deletion();
 
 grant update (caller_deleted_at, callee_deleted_at)
 on table public.call_history to authenticated;
+
+-- Hard deletion bypasses the participant-specific visibility model.
+-- TRUNCATE also bypasses row-level security, so neither role may use it.
+revoke delete, truncate on table public.call_history from anon, authenticated;
