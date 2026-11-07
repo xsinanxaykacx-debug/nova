@@ -8,8 +8,9 @@ export const metadata: Metadata = {
   title: "NABER",
   description: "NABER — Güvenli ve özel mesajlaşma.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon-192.png",
     shortcut: "/favicon.ico",
+    apple: "/icon-192.png",
   },
 };
 
