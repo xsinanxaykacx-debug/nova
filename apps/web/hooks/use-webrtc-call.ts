@@ -462,12 +462,15 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null, 
     setIncomingCall((current) => current?.call_id === cancelledCallId ? null : current);
     setStatus((current) => current === "ringing" ? "idle" : current);
     if (cancelledSignalType === "reject") setError("Karşı taraf aramayı reddetti.");
+    void supabase().from("call_signals").delete()
+      .eq("call_id", cancelledCallId)
+      .in("signal_type", ["hangup", "reject"]);
 
     const url = new URL(window.location.href);
     url.searchParams.delete("cancelled");
     url.searchParams.delete("cancelledType");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-  }, [cancelledCallId, cancelledSignalType, userId]);
+  }, [cancelledCallId, cancelledSignalType, supabase, userId]);
 
   return {
     incomingCall,
