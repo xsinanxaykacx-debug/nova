@@ -245,9 +245,7 @@ export function useWebRTCCall(userId: string) {
 
     await attachCallChannel(callId, receiverId, userId.localeCompare(receiverId) > 0);
     await sendBroadcast("signal", seed);
-    skipNextNegotiationRef.current = true;
     pc.onnegotiationneeded = async () => {
-      if (skipNextNegotiationRef.current) { skipNextNegotiationRef.current = false; return; }
       if (pc.signalingState !== "stable") return;
       try {
         makingOfferRef.current = true;
