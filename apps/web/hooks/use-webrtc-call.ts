@@ -42,7 +42,6 @@ export function useWebRTCCall(userId: string) {
   const peerIdRef = useRef<string | null>(null);
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
-  const politeRef = useRef(false);
   const negotiationReadyRef = useRef(false);
   const remoteReadyRef = useRef(false);
   const readyAckSentRef = useRef(false);
@@ -149,7 +148,6 @@ export function useWebRTCCall(userId: string) {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     peerRef.current = pc;
     peerIdRef.current = remoteUserId;
-    politeRef.current = polite;
     negotiationReadyRef.current = false;
 
     pc.onicecandidate = (event) => {
