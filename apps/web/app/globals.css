@@ -527,9 +527,9 @@ button:disabled { cursor: not-allowed; }
   background: transparent;
   color: var(--nova-text);
 }
-.call-person strong { display: block; color: var(--nova-text); font-size: 13px; }
-.call-person small { display: block; margin-top: 4px; color: var(--nova-muted); font-size: 11px; }
-.call-person time { color: var(--nova-muted); font-size: 11px; }
+.call-person strong { display: block; min-width: 0; overflow: hidden; color: var(--nova-text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.call-person small { display: block; min-width: 0; overflow: hidden; margin-top: 4px; color: var(--nova-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.call-person time { flex: 0 0 auto; color: var(--nova-muted); font-size: 11px; white-space: nowrap; }
 .call-avatar { width: 40px; height: 40px; }
 .calls-detail-panel { background: #001122; color: var(--nova-text); }
 .call-history-row-selected { outline: 1px solid #3b3b3b; }
@@ -796,6 +796,11 @@ button:disabled { cursor: not-allowed; }
   .chat-sidebar,
   .calls-sidebar { width: 100%; min-width: 0; flex: 1 1 auto; }
   .chat-room-panel { min-height: 100dvh; }
+  .calls-detail-panel { min-height: 0; }
+  .call-history-row { min-width: 0; gap: 6px; padding-right: 6px; padding-left: 8px; }
+  .call-person { min-width: 0; gap: 8px; }
+  .call-person .call-avatar { flex: 0 0 36px; width: 36px; height: 36px; }
+  .call-history-row > button[aria-label="Arama kaydını sil"] { flex: 0 0 36px; width: 36px; }
   .chat-room-header { min-height: 64px; flex-basis: 64px; padding-right: 10px; padding-left: 10px; }
   .chat-composer { min-height: 68px; gap: 4px; padding: 8px 10px; }
   .composer-icon-button { width: 38px; height: 42px; }
