@@ -31,7 +31,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
-export function useWebRTCCall(userId: string, incomingSignalId?: string | null) {
+export function useWebRTCCall(userId: string, incomingSignalId?: string | null, cancelledCallId?: string | null, cancelledSignalType?: "hangup" | "reject" | null) {
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -454,6 +454,20 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
   }, [incomingSignalId, supabase, userId]);
 
 
+
+  useEffect(() => {
+    if (!userId || !cancelledCallId) return;
+
+    cancelledCallIdsRef.current.add(cancelledCallId);
+    setIncomingCall((current) => current?.call_id === cancelledCallId ? null : current);
+    setStatus((current) => current === "ringing" ? "idle" : current);
+    if (cancelledSignalType === "reject") setError("Karşı taraf aramayı reddetti.");
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("cancelled");
+    url.searchParams.delete("cancelledType");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [cancelledCallId, cancelledSignalType, userId]);
 
   return {
     incomingCall,
