@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         filter: `receiver_id=eq.${userId}`,
       }, (event) => {
         if (!active) return;
-        const row = event.new as { id: string; sender_id: string; receiver_id: string; signal_type: string };
+        const row = event.new as { id: string; call_id: string; sender_id: string; receiver_id: string; signal_type: string };
         if (row.receiver_id !== userId || row.sender_id === userId) return;
 
         const currentUrl = new URL(window.location.href);
