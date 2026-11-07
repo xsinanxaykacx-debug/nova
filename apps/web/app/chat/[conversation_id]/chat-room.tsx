@@ -756,7 +756,7 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
                       {own && !message.deleted_at && <button type="button" aria-label="Mesaj seçenekleri" title="Mesaj seçenekleri"
                         onClick={() => setMenuMessageId((current) => current === message.id ? null : message.id)}
                         className="rounded p-1 text-current opacity-70 transition hover:bg-black/10 hover:opacity-100"><MoreVertical size={14} /></button>}
-                      <time>{new Date(message.created_at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time>
+                      <time dateTime={message.created_at}>{new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" }).format(new Date(message.created_at))}</time>
                       {own && <CheckCheck size={15} className="text-sky-200" aria-label="İletildi" />}
                     </div>
                     {menuMessageId === message.id && own && !message.deleted_at && <div className="absolute bottom-9 right-2 z-30 min-w-36 rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-xl">
