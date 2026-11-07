@@ -159,10 +159,6 @@ export function ChatSidebar({ activeConversationId }: { activeConversationId?: s
       event: "INSERT", schema: "public", table: "conversation_members", filter: `user_id=eq.${userId}`,
     }, () => {
       if (active) setRefreshKey((value) => value + 1);
-    }).on("postgres_changes", {
-      event: "UPDATE", schema: "public", table: "conversation_members", filter: `user_id=eq.${userId}`,
-    }, () => {
-      if (active) setRefreshKey((value) => value + 1);
     }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [activeConversationId, markRead, supabase, userId]);
