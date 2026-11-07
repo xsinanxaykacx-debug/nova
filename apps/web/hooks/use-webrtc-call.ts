@@ -144,7 +144,7 @@ export function useWebRTCCall(userId: string) {
     peerRef.current = pc;
     peerIdRef.current = remoteUserId;
     pc.onicecandidate = (event) => {
-      if (event.candidate) void sendBroadcast("ice", event.candidate.toJSON()).catch((cause) => {
+      if (event.candidate) void sendBroadcast("signal", { call_id: callIdRef.current, sender_id: userId, receiver_id: peerIdRef.current, signal_type: "ice", payload: event.candidate.toJSON() } satisfies CallSignal).catch((cause) => {
         setError(cause instanceof Error ? cause.message : "ICE sinyali gönderilemedi.");
       });
     };
@@ -163,7 +163,7 @@ export function useWebRTCCall(userId: string) {
       if (pc.connectionState === "disconnected") setStatus("connecting");
     };
     return pc;
-  }, [sendBroadcast]);
+  }, [sendBroadcast, userId]);
 
   const attachCallChannel = useCallback(async (callId: string, remoteUserId: string, polite: boolean) => {
     const channel = supabase().channel(`call:${callId}`, {
@@ -172,7 +172,10 @@ export function useWebRTCCall(userId: string) {
     channel.on("broadcast", { event: "signal" }, ({ payload }) => {
       const signal = payload as CallSignal;
       if (signal.sender_id === userId || signal.call_id !== callId) return;
-      if (signal.signal_type === "hangup") {\n        void resetCall();\n        return;\n      }\n      if (signal.signal_type === "ice") {
+      if (signal.signal_type === "hangup") {
+        void resetCall();
+        return;
+      }\n      if (signal.signal_type === "ice") {
         void attachRemoteCandidate(signal.payload as RTCIceCandidateInit).catch((cause) => {
           setError(cause instanceof Error ? cause.message : "ICE adayı eklenemedi.");
         });
@@ -242,6 +245,18 @@ export function useWebRTCCall(userId: string) {
 
     await attachCallChannel(callId, receiverId, userId.localeCompare(receiverId) > 0);
     await sendBroadcast("signal", seed);
+    skipNextNegotiationRef.current = true;
+    pc.onnegotiationneeded = async () => {
+      if (skipNextNegotiationRef.current) { skipNextNegotiationRef.current = false; return; }
+      if (pc.signalingState !== "stable") return;
+      try {
+        makingOfferRef.current = true;
+        await pc.setLocalDescription();
+        await sendBroadcast("signal", { call_id: callId, sender_id: userId, receiver_id: receiverId, signal_type: "offer", payload: pc.localDescription } satisfies CallSignal);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
+      } finally { makingOfferRef.current = false; }
+    };
     return callId;
   }, [attachCallChannel, createPeer, ensureMedia, sendBroadcast, supabase, userId]);
 
@@ -265,6 +280,18 @@ export function useWebRTCCall(userId: string) {
       payload: pc.localDescription,
     } satisfies CallSignal);
     setIncomingCall(null);
+    skipNextNegotiationRef.current = true;
+    pc.onnegotiationneeded = async () => {
+      if (skipNextNegotiationRef.current) { skipNextNegotiationRef.current = false; return; }
+      if (pc.signalingState !== "stable") return;
+      try {
+        makingOfferRef.current = true;
+        await pc.setLocalDescription();
+        await sendBroadcast("signal", { call_id: call.call_id, sender_id: userId, receiver_id: call.sender_id, signal_type: "offer", payload: pc.localDescription } satisfies CallSignal);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Bağlantı yeniden müzakere edilemedi.");
+      } finally { makingOfferRef.current = false; }
+    };
   }, [attachCallChannel, createPeer, ensureMedia, flushRemoteCandidates, sendBroadcast, userId]);
 
   const rejectCall = useCallback(async (call: IncomingCall) => {
@@ -309,15 +336,6 @@ export function useWebRTCCall(userId: string) {
       incomingChannelRef.current = null;
     };
   }, [supabase, userId]);
-
-  useEffect(() => {
-    const channel = channelRef.current;
-    if (!channel) return;
-    const onHangup = channel.on("broadcast", { event: "hangup" }, () => {
-      void resetCall();
-    });
-    return () => { void onHangup; };
-  }, [activeCallId, resetCall]);
 
   return {
     incomingCall,
