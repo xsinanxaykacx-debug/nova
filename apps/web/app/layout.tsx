@@ -7,7 +7,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "NOVA CHAT",
   description: "Connect. Chat. Share.",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
