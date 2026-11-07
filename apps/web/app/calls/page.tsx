@@ -100,6 +100,7 @@ export default function CallsPage() {
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const autoCallHandled = useRef<string | null>(null);
 
   const filteredCalls = useMemo(
     () => calls.filter((call) => call.name.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"))),
@@ -135,6 +136,46 @@ export default function CallsPage() {
       });
     return () => { active = false; };
   }, [incomingCall, profiles]);
+
+  useEffect(() => {
+    if (loading || !user || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get("user");
+    if (!targetUserId || autoCallHandled.current === targetUserId) return;
+
+    autoCallHandled.current = targetUserId;
+    const currentUserId = user.id;
+    const kind: CallKind = params.get("kind") === "video" ? "video" : "voice";
+    window.history.replaceState(null, "", "/calls");
+
+    let active = true;
+    async function startRequestedCall() {
+      setBusy(true);
+      setError("");
+      try {
+        const { data, error: profileError } = await createBrowserSupabaseClient()
+          .from("profiles")
+          .select("id, username, display_name, avatar_url")
+          .eq("id", targetUserId)
+          .maybeSingle();
+        if (!active) return;
+        if (profileError || !data) throw new Error("Aranacak kullan\u0131c\u0131 bulunamad\u0131.");
+        const profile = data as Profile;
+        if (profile.id === currentUserId) throw new Error("Kendini arayamazs\u0131n.");
+        setActivePeer(profile);
+        await startCall(profile.id, kind);
+      } catch (cause) {
+        if (!active) return;
+        setActivePeer(null);
+        setError(cause instanceof Error ? cause.message : "Arama ba\u015flat\u0131lamad\u0131.");
+      } finally {
+        if (active) setBusy(false);
+      }
+    }
+
+    void startRequestedCall();
+    return () => { active = false; };
+  }, [loading, user, startCall, setError]);
 
   useEffect(() => {
     if (activeCallId) {
