@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -74,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const userId = session?.user?.id;
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   // One authenticated, app-wide incoming-call listener. The /calls page
   // consumes the offer by ID from the URL; it does not open a second channel.
@@ -95,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const currentUrl = new URL(window.location.href);
         if (currentUrl.pathname !== "/calls" || currentUrl.searchParams.get("incoming") !== row.id) {
-          router.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+          routerRef.current.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
         }
       })
       .subscribe((status, subscriptionError) => {
@@ -111,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [router, userId]);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
