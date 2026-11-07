@@ -134,11 +134,11 @@ function CallsPageContent() {
     const { data: people } = participantIds.length
       ? await client.from("profiles").select("id, username, display_name").in("id", participantIds)
       : { data: [] as { id: string; username: string; display_name: string }[] };
-    const names = new Map((people ?? []).map((person) => [person.id, person.display_name || person.username || "NOVA kullanıcısı"]));
+    const names = new Map((people ?? []).map((person) => [person.id, person.display_name || person.username || "NABER kullanıcısı"]));
     setCalls((data ?? []).map((row) => {
       const outgoing = row.caller_id === user.id;
-      const callerName = names.get(row.caller_id) || "NOVA kullanıcısı";
-      const calleeName = names.get(row.callee_id) || "NOVA kullanıcısı";
+      const callerName = names.get(row.caller_id) || "NABER kullanıcısı";
+      const calleeName = names.get(row.callee_id) || "NABER kullanıcısı";
       return { id: row.id, name: outgoing ? calleeName : callerName, callerName, calleeName,
         direction: outgoing ? "outgoing" : "incoming", peerId: outgoing ? row.callee_id : row.caller_id,
         kind: row.call_type, status: row.status, createdAt: row.started_at } as CallRecord;
@@ -374,7 +374,7 @@ function CallsPageContent() {
   const hasLocalVideo = Boolean(localStream?.getVideoTracks().some((track) => track.readyState === "live"));
   const isCallActive = Boolean(activeCallId);
   const incomingKind = incomingCall ? getCallKind(incomingCall) : "voice";
-  const peerName = activePeer?.display_name || activePeer?.username || "NOVA kullanıcısı";
+  const peerName = activePeer?.display_name || activePeer?.username || "NABER kullanıcısı";
 
   if (loading || !user) {
     return <main className="flex h-[100dvh] items-center justify-center bg-[#0f172a] text-sm text-slate-400">Oturum kontrol ediliyor...</main>;
@@ -479,7 +479,7 @@ function CallsPageContent() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-200"><PhoneIncoming size={32} /></div>
             <p className="mt-6 text-xs uppercase tracking-[0.2em] text-cyan-300/70">Gelen {incomingKind === "video" ? "görüntülü" : "sesli"} arama</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">{peerName}</h2>
-            <p className="mt-2 text-sm text-slate-400">@{activePeer?.username || "nova-kullanıcısı"}</p>
+            <p className="mt-2 text-sm text-slate-400">@{activePeer?.username || "naber-kullanıcısı"}</p>
             <div className="mt-8 flex justify-center gap-3">
               <button type="button" onClick={() => void declineIncoming()} disabled={busy} className="flex items-center gap-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-5 py-3 text-sm font-medium text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"><PhoneOff size={17} /> Reddet</button>
               <button type="button" onClick={() => void acceptIncoming()} disabled={busy} className="flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50"><Phone size={17} /> Kabul Et</button>
@@ -488,7 +488,7 @@ function CallsPageContent() {
         ) : (
           <div className="flex w-full max-w-md flex-col items-center text-center">
             <div className="flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/15 bg-cyan-400/10 text-cyan-200"><PhoneCall size={38} strokeWidth={1.4} /></div>
-            <h2 className="mt-7 text-2xl font-semibold text-white">NOVA Aramalar</h2>
+            <h2 className="mt-7 text-2xl font-semibold text-white">NABER Aramalar</h2>
             <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">{activePeer ? `${peerName} ile güvenli sesli veya görüntülü görüşme başlat.` : "Kişilerinden birini seçerek güvenli sesli veya görüntülü görüşme başlat."}</p>
             <button type="button" onClick={() => void openUserSearch()} className="mt-7 flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-400"><Search size={18} /> Kullanıcı Ara</button>
             <p className="mt-4 text-xs text-slate-500">Ses ve görüntü WebRTC üzerinden eşten eşe iletilir.</p>

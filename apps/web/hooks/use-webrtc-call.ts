@@ -50,7 +50,7 @@ async function getIceServers(): Promise<RTCIceServer[]> {
     if (turnServers.length === 0) throw new Error("Cloudflare TURN returned no usable ICE servers.");
     return [...FALLBACK_ICE_SERVERS, ...turnServers];
   } catch (cause) {
-    console.warn("[NOVA WebRTC] Cloudflare TURN unavailable; using STUN fallback.", cause);
+    console.warn("[NABER WebRTC] Cloudflare TURN unavailable; using STUN fallback.", cause);
     return FALLBACK_ICE_SERVERS;
   }
 }

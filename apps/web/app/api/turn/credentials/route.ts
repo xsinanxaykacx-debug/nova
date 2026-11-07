@@ -39,13 +39,13 @@ export async function POST(request: NextRequest) {
     );
 
     if (!cloudflareResponse.ok) {
-      console.error("[NOVA TURN] Hugging Face TURN credential generation failed:", cloudflareResponse.status);
+      console.error("[NABER TURN] Hugging Face TURN credential generation failed:", cloudflareResponse.status);
       return NextResponse.json({ error: "TURN credentials could not be generated." }, { status: 502, headers: NO_STORE_HEADERS });
     }
 
     const payload = await cloudflareResponse.json() as { iceServers?: RTCIceServer[] };
     if (!Array.isArray(payload.iceServers) || payload.iceServers.length === 0) {
-      console.error("[NOVA TURN] Hugging Face TURN response did not contain ICE servers.");
+      console.error("[NABER TURN] Hugging Face TURN response did not contain ICE servers.");
       return NextResponse.json({ error: "Hugging Face returned an invalid TURN configuration." }, { status: 502, headers: NO_STORE_HEADERS });
     }
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ iceServers }, { status: 200, headers: NO_STORE_HEADERS });
   } catch (cause) {
-    console.error("[NOVA TURN] Credential endpoint error:", cause instanceof Error ? cause.message : "Unknown error");
+    console.error("[NABER TURN] Credential endpoint error:", cause instanceof Error ? cause.message : "Unknown error");
     return NextResponse.json({ error: "TURN credential service is temporarily unavailable." }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }

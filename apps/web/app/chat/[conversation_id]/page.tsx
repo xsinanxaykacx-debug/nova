@@ -32,7 +32,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   const participantProfiles = (profiles ?? []).map((profile) => ({
     id: profile.id,
-    display_name: profile.display_name || profile.username || "NOVA kullanıcısı",
+    display_name: profile.display_name || profile.username || "NABER kullanıcısı",
     username: profile.username || "",
     avatar_url: profile.avatar_url ?? null,
   }));
@@ -78,7 +78,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
     peerUserId={peerProfile?.id}
     conversationType="direct"
     peerPublicKey={peerProfile?.public_key ?? null}
-    peerName={peerProfile?.display_name || peerProfile?.username || "NOVA kullanıcısı"}
+    peerName={peerProfile?.display_name || peerProfile?.username || "NABER kullanıcısı"}
     peerUsername={peerProfile?.username ?? ""}
     peerAvatarUrl={peerProfile?.avatar_url ?? null}
     initialMessages={(history ?? []) as Message[]}
