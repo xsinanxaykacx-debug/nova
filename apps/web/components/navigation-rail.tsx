@@ -55,7 +55,7 @@ export function NavigationRail({ showMobileNav = true }: { showMobileNav?: boole
     router.replace("/login"); router.refresh();
   }
 
-  const displayName = profile.display_name || profile.username || "NOVA kullanıcısı";
+  const displayName = profile.display_name || profile.username || "NABER kullanıcısı";
   const avatar = profile.avatar_url ? <Image src={profile.avatar_url} alt="" width={42} height={42} unoptimized className="h-full w-full rounded-full object-cover" /> : <span>{initials(displayName)}</span>;
 
   return (
