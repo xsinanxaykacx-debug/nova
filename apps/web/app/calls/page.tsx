@@ -403,12 +403,16 @@ function CallsPageContent() {
         </div>
         <section className="min-h-0 flex-1 overflow-y-auto border-t border-slate-700/50 px-2 py-3">
           {historyActionError && <p role="alert" className="mb-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{historyActionError}</p>}
-          {filteredCalls.length ? filteredCalls.map((call) => (
+          {filteredCalls.length ? filteredCalls.map((call) => {
+            const isFailedCall = call.status === "rejected" || call.status === "missed";
+            const directionTone = call.direction === "incoming" ? "text-sky-400" : "text-emerald-400";
+            const statusTone = isFailedCall ? "text-rose-400" : directionTone;
+            return (
             <div key={call.id} className="call-history-row">
               <button type="button" onClick={() => { setActivePeer({ id: call.peerId, username: "", display_name: call.name, avatar_url: null }); setMobilePanel("detail"); }}
                 className="call-person min-w-0 flex-1 text-left">
-                <span className="call-avatar shrink-0">{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
-                <span className="min-w-0 flex-1 overflow-hidden"><strong className="block truncate">{call.callerName} → {call.calleeName}</strong><small className="block truncate">{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
+                <span className={`call-avatar shrink-0 ${statusTone}`}>{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
+                <span className="min-w-0 flex-1 overflow-hidden"><strong className="block truncate">{call.callerName} → {call.calleeName}</strong><small className={`block truncate ${statusTone}`}>{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
                 <time className="shrink-0 whitespace-nowrap">{new Date(call.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</time>
               </button>
               <button type="button" onClick={() => void deleteCallHistoryEntry(call)}
@@ -418,7 +422,8 @@ function CallsPageContent() {
                 {deletingCallId === call.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
               </button>
             </div>
-          )) : <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-5 text-center">
+            );
+          }) : <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-5 text-center">
             <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400"><Phone size={22} /></span>
             <p className="text-sm font-medium text-slate-300">{historyLoading ? "Arama geçmişi yükleniyor..." : historyError || (term ? "Eşleşen arama yok" : "Henüz arama yok")}</p>
             <p className="mt-2 text-xs text-slate-500">{historyError ? "Veritabanı bağlantısını kontrol edip tekrar dene." : "Yeni bir arama başlatmak için Kullanıcı Ara seçeneğini kullan."}</p>
