@@ -94,11 +94,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, (event) => {
         if (!active) return;
         const row = event.new as { id: string; sender_id: string; receiver_id: string; signal_type: string };
-        if (row.signal_type !== "offer" || row.sender_id === userId || row.receiver_id !== userId) return;
+        if (row.receiver_id !== userId || row.sender_id === userId) return;
 
         const currentUrl = new URL(window.location.href);
-        if (currentUrl.pathname !== "/calls" || currentUrl.searchParams.get("incoming") !== row.id) {
-          routerRef.current.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+        if (row.signal_type === "offer") {
+          if (currentUrl.pathname !== "/calls" || currentUrl.searchParams.get("incoming") !== row.id) {
+            routerRef.current.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+          }
+          return;
+        }
+
+        // Terminal signals must also clear a pending incoming-call prompt.
+        // Active calls are handled by their private call channel.
+        if ((row.signal_type === "hangup" || row.signal_type === "reject") && currentUrl.pathname === "/calls") {
+          currentUrl.searchParams.set("cancelled", row.call_id);
+          currentUrl.searchParams.set("cancelledType", row.signal_type);
+          routerRef.current.replace(`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
         }
       })
       .subscribe((status, subscriptionError) => {
