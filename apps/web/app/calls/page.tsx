@@ -15,6 +15,7 @@ import {
   PhoneOutgoing,
   Plus,
   Search,
+  Trash2,
   UserRound,
   Video,
   VideoOff,
@@ -91,6 +92,9 @@ function CallsPageContent() {
   const [term, setTerm] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
+  const [historyActionError, setHistoryActionError] = useState("");
+  const [deletingCallId, setDeletingCallId] = useState<string | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -114,7 +118,7 @@ function CallsPageContent() {
     const client = createBrowserSupabaseClient();
     const { data, error: historyQueryError } = await client.from("call_history")
       .select("id, call_id, caller_id, callee_id, call_type, status, started_at, ended_at")
-      .or(`caller_id.eq.${user.id},callee_id.eq.${user.id}`)
+      .or(`and(caller_id.eq.${user.id},caller_deleted_at.is.null),and(callee_id.eq.${user.id},callee_deleted_at.is.null)`)
       .order("started_at", { ascending: false }).limit(100);
     if (historyQueryError) {
       setHistoryError("Arama geçmişi yüklenemedi. Veritabanı migration'ını ve bağlantını kontrol et.");
@@ -136,6 +140,54 @@ function CallsPageContent() {
     setHistoryError("");
     setHistoryLoading(false);
   }, [user]);
+
+  async function deleteCallHistoryEntry(call: CallRecord) {
+    if (!user || deletingCallId || clearingHistory) return;
+    if (!window.confirm("Bu arama kaydını kendi geçmişinden silmek istiyor musun?")) return;
+
+    setDeletingCallId(call.id);
+    setHistoryActionError("");
+    const client = createBrowserSupabaseClient();
+    const deletedAt = new Date().toISOString();
+    const isCaller = call.direction === "outgoing";
+    const { error: deleteError } = await client.from("call_history")
+      .update(isCaller ? { caller_deleted_at: deletedAt } : { callee_deleted_at: deletedAt })
+      .eq("id", call.id)
+      .eq(isCaller ? "caller_id" : "callee_id", user.id);
+
+    if (deleteError) {
+      setHistoryActionError("Arama kaydı silinemedi. Tekrar dene.");
+      setDeletingCallId(null);
+      return;
+    }
+
+    setCalls((current) => current.filter((item) => item.id !== call.id));
+    setDeletingCallId(null);
+  }
+
+  async function clearCallHistory() {
+    if (!user || clearingHistory || deletingCallId || calls.length === 0) return;
+    if (!window.confirm("Arama geçmişindeki tüm kayıtları kendi hesabından temizlemek istiyor musun?")) return;
+
+    setClearingHistory(true);
+    setHistoryActionError("");
+    const client = createBrowserSupabaseClient();
+    const deletedAt = new Date().toISOString();
+    const [callerResult, calleeResult] = await Promise.all([
+      client.from("call_history").update({ caller_deleted_at: deletedAt })
+        .eq("caller_id", user.id).is("caller_deleted_at", null),
+      client.from("call_history").update({ callee_deleted_at: deletedAt })
+        .eq("callee_id", user.id).is("callee_deleted_at", null),
+    ]);
+
+    if (callerResult.error || calleeResult.error) {
+      setHistoryActionError("Arama geçmişi tamamen temizlenemedi. Tekrar dene.");
+      await loadCallHistory();
+    } else {
+      setCalls([]);
+    }
+    setClearingHistory(false);
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -324,14 +376,23 @@ function CallsPageContent() {
       <aside className="calls-sidebar hidden h-full min-h-0 w-[320px] shrink-0 flex-col border-r border-slate-700/70 md:flex">
         <header className="calls-heading flex h-[68px] shrink-0 items-center justify-between px-5">
           <h1 className="text-[19px] font-semibold text-slate-300">Aramalar</h1>
-          <button type="button" onClick={() => void openUserSearch()} aria-label="Kullanıcı Ara" title="Kullanıcı Ara" className="call-heading-action">
-            <span className="relative inline-flex"><PhoneCall size={20} /><Plus size={11} className="absolute -right-1 -top-1 rounded-full bg-[#111a2d]" /></span>
-          </button>
+          <div className="flex items-center gap-2">
+            {calls.length > 0 && (
+              <button type="button" onClick={() => void clearCallHistory()} disabled={clearingHistory || deletingCallId !== null}
+                aria-label="Tümünü Temizle" title="Tümünü Temizle" className="call-heading-action text-rose-300 hover:text-rose-200 disabled:opacity-40">
+                {clearingHistory ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={19} />}
+              </button>
+            )}
+            <button type="button" onClick={() => void openUserSearch()} aria-label="Kullanıcı Ara" title="Kullanıcı Ara" className="call-heading-action">
+              <span className="relative inline-flex"><PhoneCall size={20} /><Plus size={11} className="absolute -right-1 -top-1 rounded-full bg-[#111a2d]" /></span>
+            </button>
+          </div>
         </header>
         <div className="chat-search-wrap shrink-0 px-5 pb-4">
           <label className="search-field chat-search-field"><span className="text-slate-400"><Search size={17} /></span><input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Aramalarda ara" aria-label="Aramalarda ara" /></label>
         </div>
         <section className="min-h-0 flex-1 overflow-y-auto border-t border-slate-700/50 px-2 py-3">
+          {historyActionError && <p role="alert" className="mb-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{historyActionError}</p>}
           {filteredCalls.length ? filteredCalls.map((call) => (
             <div key={call.id} className="call-history-row">
               <div className="call-person min-w-0 flex-1 text-left">
@@ -339,6 +400,12 @@ function CallsPageContent() {
                 <span className="min-w-0 flex-1"><strong>{call.callerName} → {call.calleeName}</strong><small>{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
                 <time>{new Date(call.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</time>
               </div>
+              <button type="button" onClick={() => void deleteCallHistoryEntry(call)}
+                disabled={clearingHistory || deletingCallId !== null}
+                aria-label="Arama kaydını sil" title="Arama kaydını sil"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-40">
+                {deletingCallId === call.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              </button>
             </div>
           )) : <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-5 text-center">
             <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400"><Phone size={22} /></span>
