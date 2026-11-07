@@ -75,10 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userId = session?.user?.id;
   const router = useRouter();
 
-  // Subscribe once at the authenticated app shell so incoming calls are not
-  // missed when the recipient is on a different page or conversation.
+  // One authenticated, app-wide incoming-call listener. The /calls page
+  // consumes the offer by ID from the URL; it does not open a second channel.
   useEffect(() => {
     if (!userId) return;
+
+    let active = true;
     const supabase = createBrowserSupabaseClient();
     const channel = supabase.channel(`incoming-call-router:${userId}`)
       .on("postgres_changes", {
@@ -87,18 +89,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         table: "call_signals",
         filter: `receiver_id=eq.${userId}`,
       }, (event) => {
+        if (!active) return;
         const row = event.new as { id: string; sender_id: string; receiver_id: string; signal_type: string };
         if (row.signal_type !== "offer" || row.sender_id === userId || row.receiver_id !== userId) return;
-        if (window.location.pathname !== "/calls") {
+
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.pathname !== "/calls" || currentUrl.searchParams.get("incoming") !== row.id) {
           router.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
         }
       })
       .subscribe((status, subscriptionError) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        // removeChannel() emits CLOSED during normal cleanup. Do not report
+        // that expected lifecycle event as a Realtime failure.
+        if (!active || status === "CLOSED" || status === "SUBSCRIBED") return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Global incoming-call subscription failed:", status, subscriptionError);
         }
       });
-    return () => { void supabase.removeChannel(channel); };
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
   }, [router, userId]);
 
   useEffect(() => {
