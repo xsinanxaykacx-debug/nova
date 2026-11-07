@@ -531,6 +531,13 @@ button:disabled { cursor: not-allowed; }
 .call-person small { display: block; min-width: 0; overflow: hidden; margin-top: 4px; color: var(--nova-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .call-person time { flex: 0 0 auto; color: var(--nova-muted); font-size: 11px; white-space: nowrap; }
 .call-avatar { width: 40px; height: 40px; }
+/* Call history direction/outcome colors must override .call-person small defaults. */
+.call-avatar.call-tone-incoming,
+.call-person .call-history-meta.call-tone-incoming { color: #38bdf8 !important; }
+.call-avatar.call-tone-outgoing,
+.call-person .call-history-meta.call-tone-outgoing { color: #34d399 !important; }
+.call-avatar.call-tone-failed,
+.call-person .call-history-meta.call-tone-failed { color: #fb7185 !important; }
 .calls-detail-panel { background: #001122; color: var(--nova-text); }
 .call-history-row-selected { outline: 1px solid #3b3b3b; }
 
