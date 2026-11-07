@@ -31,11 +31,10 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
-export function useWebRTCCall(userId: string, incomingSignalId?: string | null) {
+export function useWebRTCCall(userId: string, incomingSignalId?: string | null, cancelledCallId?: string | null, cancelledSignalType?: "hangup" | "reject" | null) {
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const incomingChannelRef = useRef<RealtimeChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const callIdRef = useRef<string | null>(null);
@@ -454,45 +453,24 @@ export function useWebRTCCall(userId: string, incomingSignalId?: string | null) 
     return () => { active = false; };
   }, [incomingSignalId, supabase, userId]);
 
+
+
   useEffect(() => {
-    if (!userId) return;
-    const channel = supabase().channel(`incoming-calls:${userId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "call_signals",
-        filter: `receiver_id=eq.${userId}`,
-      }, (event) => {
-        const row = event.new as CallSignal & { id?: string };
-        if (row.signal_type === "hangup" || row.signal_type === "reject") {
-          cancelledCallIdsRef.current.add(row.call_id);
-          if (callIdRef.current === row.call_id) {
-            if (row.signal_type === "reject") setError("Karşı taraf aramayı reddetti.");
-            void resetCall();
-          } else {
-            setIncomingCall((current) => current?.call_id === row.call_id ? null : current);
-            setStatus((current) => current === "ringing" ? "idle" : current);
-          }
-          void supabase().from("call_signals").delete().eq("call_id", row.call_id).eq("signal_type", row.signal_type);
-          return;
-        }
-        if (row.signal_type === "offer" && row.sender_id !== userId && !cancelledCallIdsRef.current.has(row.call_id)) {
-          setIncomingCall(row as IncomingCall);
-          setStatus("ringing");
-        }
-      })
-      .subscribe((state, subscriptionError) => {
-        if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") {
-          console.error("Incoming call subscription failed:", state, subscriptionError);
-          setError("Gelen arama kanalına bağlanılamadı. Sayfayı yenileyip tekrar dene.");
-        }
-      });
-    incomingChannelRef.current = channel;
-    return () => {
-      if (incomingChannelRef.current) void supabase().removeChannel(incomingChannelRef.current);
-      incomingChannelRef.current = null;
-    };
-  }, [resetCall, supabase, userId]);
+    if (!userId || !cancelledCallId) return;
+
+    cancelledCallIdsRef.current.add(cancelledCallId);
+    setIncomingCall((current) => current?.call_id === cancelledCallId ? null : current);
+    setStatus((current) => current === "ringing" ? "idle" : current);
+    if (cancelledSignalType === "reject") setError("Karşı taraf aramayı reddetti.");
+    void supabase().from("call_signals").delete()
+      .eq("call_id", cancelledCallId)
+      .in("signal_type", ["hangup", "reject"]);
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("cancelled");
+    url.searchParams.delete("cancelledType");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [cancelledCallId, cancelledSignalType, supabase, userId]);
 
   return {
     incomingCall,

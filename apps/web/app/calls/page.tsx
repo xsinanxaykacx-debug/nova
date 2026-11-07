@@ -74,6 +74,8 @@ function CallsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const incomingSignalId = searchParams.get("incoming");
+  const cancelledCallId = searchParams.get("cancelled");
+  const cancelledSignalType = searchParams.get("cancelledType");
   const {
     incomingCall,
     status,
@@ -86,7 +88,7 @@ function CallsPageContent() {
     rejectCall,
     hangUp,
     setError,
-  } = useWebRTCCall(user?.id ?? "", incomingSignalId);
+  } = useWebRTCCall(user?.id ?? "", incomingSignalId, cancelledCallId, cancelledSignalType === "hangup" || cancelledSignalType === "reject" ? cancelledSignalType : null);
 
   const [term, setTerm] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);

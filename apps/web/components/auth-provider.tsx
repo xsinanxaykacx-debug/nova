@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -74,11 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const userId = session?.user?.id;
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
-  // Subscribe once at the authenticated app shell so incoming calls are not
-  // missed when the recipient is on a different page or conversation.
+  // One authenticated, app-wide incoming-call listener. The /calls page
+  // consumes the offer by ID from the URL; it does not open a second channel.
   useEffect(() => {
     if (!userId) return;
+
+    let active = true;
     const supabase = createBrowserSupabaseClient();
     const channel = supabase.channel(`incoming-call-router:${userId}`)
       .on("postgres_changes", {
@@ -87,19 +92,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         table: "call_signals",
         filter: `receiver_id=eq.${userId}`,
       }, (event) => {
-        const row = event.new as { id: string; sender_id: string; receiver_id: string; signal_type: string };
-        if (row.signal_type !== "offer" || row.sender_id === userId || row.receiver_id !== userId) return;
-        if (window.location.pathname !== "/calls") {
-          router.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+        if (!active) return;
+        const row = event.new as { id: string; call_id: string; sender_id: string; receiver_id: string; signal_type: string };
+        if (row.receiver_id !== userId || row.sender_id === userId) return;
+
+        const currentUrl = new URL(window.location.href);
+        if (row.signal_type === "offer") {
+          if (currentUrl.pathname !== "/calls" || currentUrl.searchParams.get("incoming") !== row.id) {
+            routerRef.current.push(`/calls?incoming=${encodeURIComponent(row.id)}`);
+          }
+          return;
+        }
+
+        // Terminal signals must also clear a pending incoming-call prompt.
+        // Active calls are handled by their private call channel.
+        if ((row.signal_type === "hangup" || row.signal_type === "reject") && currentUrl.pathname === "/calls") {
+          currentUrl.searchParams.set("cancelled", row.call_id);
+          currentUrl.searchParams.set("cancelledType", row.signal_type);
+          routerRef.current.replace(`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
         }
       })
       .subscribe((status, subscriptionError) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        // removeChannel() emits CLOSED during normal cleanup. Do not report
+        // that expected lifecycle event as a Realtime failure.
+        if (!active || status === "CLOSED" || status === "SUBSCRIBED") return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Global incoming-call subscription failed:", status, subscriptionError);
         }
       });
-    return () => { void supabase.removeChannel(channel); };
-  }, [router, userId]);
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
