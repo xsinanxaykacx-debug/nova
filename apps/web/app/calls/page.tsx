@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  Check,
   Loader2,
   Mic,
   MicOff,
@@ -16,7 +15,6 @@ import {
   PhoneOutgoing,
   Plus,
   Search,
-  Trash2,
   UserRound,
   Video,
   VideoOff,
@@ -37,10 +35,12 @@ type Profile = {
 type CallRecord = {
   id: string;
   name: string;
-  direction: "incoming" | "outgoing" | "missed";
-  kind: "voice" | "video";
+  callerName: string;
+  calleeName: string;
+  direction: "incoming" | "outgoing";
+  kind: CallKind;
+  status: "ringing" | "answered" | "rejected" | "missed";
   createdAt: string;
-  note: string;
 };
 
 function initials(value: string) {
@@ -87,7 +87,8 @@ export default function CallsPage() {
   } = useWebRTCCall(user?.id ?? "");
 
   const [term, setTerm] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -100,11 +101,49 @@ export default function CallsPage() {
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const autoCallHandled = useRef<string | null>(null);
 
   const filteredCalls = useMemo(
-    () => calls.filter((call) => call.name.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"))),
+    () => calls.filter((call) => `${call.callerName} ${call.calleeName}`.toLocaleLowerCase("tr-TR").includes(term.toLocaleLowerCase("tr-TR"))),
     [calls, term],
   );
+  const loadCallHistory = useCallback(async () => {
+    if (!user) return;
+    const client = createBrowserSupabaseClient();
+    const { data, error: historyQueryError } = await client.from("call_history")
+      .select("id, call_id, caller_id, callee_id, call_type, status, started_at, ended_at")
+      .or(`caller_id.eq.${user.id},callee_id.eq.${user.id}`)
+      .order("started_at", { ascending: false }).limit(100);
+    if (historyQueryError) {
+      setHistoryError("Arama geçmişi yüklenemedi. Veritabanı migration'ını ve bağlantını kontrol et.");
+      setHistoryLoading(false);
+      return;
+    }
+    const participantIds = [...new Set((data ?? []).flatMap((row) => [row.caller_id, row.callee_id]))];
+    const { data: people } = participantIds.length
+      ? await client.from("profiles").select("id, username, display_name").in("id", participantIds)
+      : { data: [] as { id: string; username: string; display_name: string }[] };
+    const names = new Map((people ?? []).map((person) => [person.id, person.display_name || person.username || "NOVA kullanıcısı"]));
+    setCalls((data ?? []).map((row) => {
+      const outgoing = row.caller_id === user.id;
+      const callerName = names.get(row.caller_id) || "NOVA kullanıcısı";
+      const calleeName = names.get(row.callee_id) || "NOVA kullanıcısı";
+      return { id: row.id, name: outgoing ? calleeName : callerName, callerName, calleeName,
+        direction: outgoing ? "outgoing" : "incoming", kind: row.call_type, status: row.status, createdAt: row.started_at } as CallRecord;
+    }));
+    setHistoryError("");
+    setHistoryLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void loadCallHistory();
+    const channel = createBrowserSupabaseClient().channel(`call-history:${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_history" }, () => { void loadCallHistory(); })
+      .subscribe();
+    return () => { void createBrowserSupabaseClient().removeChannel(channel); };
+  }, [user, loadCallHistory]);
+
   const filteredProfiles = useMemo(() => {
     const value = searchTerm.trim().toLocaleLowerCase("tr-TR");
     if (!value) return profiles;
@@ -135,6 +174,46 @@ export default function CallsPage() {
       });
     return () => { active = false; };
   }, [incomingCall, profiles]);
+
+  useEffect(() => {
+    if (loading || !user || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get("user");
+    if (!targetUserId || autoCallHandled.current === targetUserId) return;
+
+    autoCallHandled.current = targetUserId;
+    const currentUserId = user.id;
+    const kind: CallKind = params.get("kind") === "video" ? "video" : "voice";
+    window.history.replaceState(null, "", "/calls");
+
+    let active = true;
+    async function startRequestedCall() {
+      setBusy(true);
+      setError("");
+      try {
+        const { data, error: profileError } = await createBrowserSupabaseClient()
+          .from("profiles")
+          .select("id, username, display_name, avatar_url")
+          .eq("id", targetUserId)
+          .maybeSingle();
+        if (!active) return;
+        if (profileError || !data) throw new Error("Aranacak kullan\u0131c\u0131 bulunamad\u0131.");
+        const profile = data as Profile;
+        if (profile.id === currentUserId) throw new Error("Kendini arayamazs\u0131n.");
+        setActivePeer(profile);
+        await startCall(profile.id, kind);
+      } catch (cause) {
+        if (!active) return;
+        setActivePeer(null);
+        setError(cause instanceof Error ? cause.message : "Arama ba\u015flat\u0131lamad\u0131.");
+      } finally {
+        if (active) setBusy(false);
+      }
+    }
+
+    void startRequestedCall();
+    return () => { active = false; };
+  }, [loading, user, startCall, setError]);
 
   useEffect(() => {
     if (activeCallId) {
@@ -227,10 +306,6 @@ export default function CallsPage() {
     setCameraEnabled(next);
   }
 
-  function toggleSelected(id: string) {
-    setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
-  }
-
   const hasRemoteVideo = Boolean(remoteStream?.getVideoTracks().some((track) => track.readyState === "live"));
   const hasLocalVideo = Boolean(localStream?.getVideoTracks().some((track) => track.readyState === "live"));
   const isCallActive = Boolean(activeCallId);
@@ -250,25 +325,23 @@ export default function CallsPage() {
           <button type="button" onClick={() => void openUserSearch()} aria-label="Kullanıcı Ara" title="Kullanıcı Ara" className="call-heading-action">
             <span className="relative inline-flex"><PhoneCall size={20} /><Plus size={11} className="absolute -right-1 -top-1 rounded-full bg-[#111a2d]" /></span>
           </button>
-          <button type="button" disabled={selectedIds.length === 0} onClick={() => { setCalls((current) => current.filter((call) => !selectedIds.includes(call.id))); setSelectedIds([]); }} aria-label="Seçilen aramaları temizle" title="Seçilenleri sil" className="call-heading-action disabled:opacity-30"><Trash2 size={20} /></button>
         </header>
         <div className="chat-search-wrap shrink-0 px-5 pb-4">
           <label className="search-field chat-search-field"><span className="text-slate-400"><Search size={17} /></span><input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Aramalarda ara" aria-label="Aramalarda ara" /></label>
         </div>
         <section className="min-h-0 flex-1 overflow-y-auto border-t border-slate-700/50 px-2 py-3">
           {filteredCalls.length ? filteredCalls.map((call) => (
-            <div key={call.id} className={`call-history-row ${selectedIds.includes(call.id) ? "call-history-row-selected" : ""}`}>
-              <button type="button" onClick={() => toggleSelected(call.id)} aria-label={selectedIds.includes(call.id) ? "Seçimi kaldır" : "Aramayı seç"} className="call-select"><span>{selectedIds.includes(call.id) ? <Check size={14} /> : null}</span></button>
+            <div key={call.id} className="call-history-row">
               <div className="call-person min-w-0 flex-1 text-left">
                 <span className="call-avatar">{call.direction === "outgoing" ? <PhoneOutgoing size={18} /> : <PhoneIncoming size={18} />}</span>
-                <span className="min-w-0 flex-1"><strong>{call.name}</strong><small>{call.direction === "incoming" ? "Gelen" : call.direction === "outgoing" ? "Giden" : "Cevapsız"} {call.kind === "voice" ? "sesli arama" : "görüntülü arama"}</small></span>
-                <time>{new Date(call.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time>
+                <span className="min-w-0 flex-1"><strong>{call.callerName} → {call.calleeName}</strong><small>{call.direction === "incoming" ? "Gelen" : "Giden"} · {call.status === "answered" ? "Cevaplandı" : call.status === "rejected" ? "Reddedildi" : call.status === "missed" ? "Kaçırıldı" : "Aranıyor"} · {call.kind === "voice" ? "Sesli arama" : "Görüntülü arama"}</small></span>
+                <time>{new Date(call.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</time>
               </div>
             </div>
           )) : <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-5 text-center">
             <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400"><Phone size={22} /></span>
-            <p className="text-sm font-medium text-slate-300">{term ? "Eşleşen arama yok" : "Henüz arama yok"}</p>
-            <p className="mt-2 text-xs text-slate-500">Yeni bir arama başlatmak için Kullanıcı Ara seçeneğini kullan.</p>
+            <p className="text-sm font-medium text-slate-300">{historyLoading ? "Arama geçmişi yükleniyor..." : historyError || (term ? "Eşleşen arama yok" : "Henüz arama yok")}</p>
+            <p className="mt-2 text-xs text-slate-500">{historyError ? "Veritabanı bağlantısını kontrol edip tekrar dene." : "Yeni bir arama başlatmak için Kullanıcı Ara seçeneğini kullan."}</p>
             <button type="button" onClick={() => void openUserSearch()} className="mt-5 rounded-xl bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-300 hover:bg-cyan-500/25">Kullanıcı Ara</button>
           </div>}
         </section>

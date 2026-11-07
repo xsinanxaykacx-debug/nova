@@ -308,13 +308,18 @@ export function useWebRTCCall(userId: string) {
         signal_type: "offer",
         payload: pc.localDescription as RTCSessionDescriptionInit,
       };
+      const { error: historyInsertError } = await supabase().from("call_history").insert({
+        call_id: callId, caller_id: userId, callee_id: receiverId, call_type: kind, status: "ringing",
+      });
+      if (historyInsertError) setError("Arama geçmişi kaydedilemedi: " + historyInsertError.message);
       const { error: insertError } = await supabase().from("call_signals").insert(seed);
-      if (insertError) throw new Error(`Arama başlatılamadı: ${insertError.message}`);
+      if (insertError) throw new Error("Arama başlatılamadı: " + insertError.message);
       await attachCallChannel(callId, receiverId, polite);
       await sendBroadcast(seed);
       negotiationReadyRef.current = true;
       await announceReady();
     } catch (cause) {
+      await supabase().from("call_history").update({ status: "missed", ended_at: new Date().toISOString() }).eq("call_id", callId).eq("status", "ringing");
       await resetCall();
       throw cause;
     } finally {
@@ -347,15 +352,19 @@ export function useWebRTCCall(userId: string) {
         payload: pc.localDescription as RTCSessionDescriptionInit,
       });
       negotiationReadyRef.current = true;
+      const { error: historyError } = await supabase().from("call_history").update({ status: "answered" }).eq("call_id", call.call_id);
+      if (historyError) setError("Arama bağlandı ancak geçmiş güncellenemedi: " + historyError.message);
       setIncomingCall(null);
     } catch (cause) {
       await resetCall();
       throw cause;
     }
-  }, [announceReady, attachCallChannel, createPeer, ensureMedia, flushRemoteCandidates, resetCall, sendBroadcast, userId]);
+  }, [announceReady, attachCallChannel, createPeer, ensureMedia, flushRemoteCandidates, resetCall, sendBroadcast, supabase, userId]);
 
   const rejectCall = useCallback(async (call: IncomingCall) => {
     try {
+      const { error: historyError } = await supabase().from("call_history").update({ status: "rejected", ended_at: new Date().toISOString() }).eq("call_id", call.call_id);
+      if (historyError) setError("Arama geçmişi güncellenemedi: " + historyError.message);
       const polite = userId.localeCompare(call.sender_id) > 0;
       callIdRef.current = call.call_id;
       peerIdRef.current = call.sender_id;
@@ -375,6 +384,13 @@ export function useWebRTCCall(userId: string) {
 
   const hangUp = useCallback(async () => {
     const callId = callIdRef.current;
+    if (callId) {
+      const endedAt = new Date().toISOString();
+      const { error: missedError } = await supabase().from("call_history").update({ status: "missed", ended_at: endedAt }).eq("call_id", callId).eq("status", "ringing");
+      if (missedError) setError("Arama geçmişi güncellenemedi: " + missedError.message);
+      const { error: endedError } = await supabase().from("call_history").update({ ended_at: endedAt }).eq("call_id", callId).eq("status", "answered");
+      if (endedError) setError("Arama bitiş zamanı kaydedilemedi: " + endedError.message);
+    }
     if (callId && peerIdRef.current) {
       await sendBroadcast({
         call_id: callId,
