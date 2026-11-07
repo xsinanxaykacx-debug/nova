@@ -796,7 +796,6 @@ button:disabled { cursor: not-allowed; }
   .chat-sidebar,
   .calls-sidebar { width: 100%; min-width: 0; flex: 1 1 auto; }
   .chat-room-panel { min-height: 100dvh; }
-  .calls-sidebar { display: flex; }
   .calls-detail-panel { min-height: 0; }
   .call-history-row { min-width: 0; gap: 6px; padding-right: 6px; padding-left: 8px; }
   .call-person { min-width: 0; gap: 8px; }
