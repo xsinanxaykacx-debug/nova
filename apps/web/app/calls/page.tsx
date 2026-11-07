@@ -404,7 +404,7 @@ function CallsPageContent() {
         <section className="min-h-0 flex-1 overflow-y-auto border-t border-slate-700/50 px-2 py-3">
           {historyActionError && <p role="alert" className="mb-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{historyActionError}</p>}
           {filteredCalls.length ? filteredCalls.map((call) => {
-            const isFailedCall = call.status === "rejected" || call.status === "missed" || call.status === "cancelled" || call.status === "canceled";
+            const isFailedCall = call.status === "rejected" || call.status === "missed" || call.status === "cancelled";
             const statusColor = isFailedCall ? "#fb7185" : call.direction === "incoming" ? "#60a5fa" : "#34d399";
             return (
             <div key={call.id} className="call-history-row">
