@@ -9,7 +9,7 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
       <View style={styles.container}>
-        <Text style={styles.brand}>NOVA CHAT</Text>
+        <Text style={styles.brand}>NABER</Text>
         <Text style={styles.subtitle}>Connect. Chat. Share.</Text>
 
         <View style={styles.infoBox}>
