@@ -623,7 +623,8 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
       setError(fileError instanceof Error ? fileError.message : "Şifreli dosya gönderilemedi.");
     } finally { input.value = ""; }
   }
-\n  async function handleGalleryImageSelected(event: ChangeEvent<HTMLInputElement>) {
+
+  async function handleGalleryImageSelected(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
