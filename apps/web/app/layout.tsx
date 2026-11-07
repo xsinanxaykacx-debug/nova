@@ -5,8 +5,8 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NOVA CHAT",
-  description: "Connect. Chat. Share.",
+  title: "NABER",
+  description: "NABER — Güvenli ve özel mesajlaşma.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
