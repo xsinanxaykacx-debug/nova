@@ -382,7 +382,7 @@ function CallsPageContent() {
 
   return (
     <main className="chat-app-shell flex h-[100dvh] min-h-[560px] overflow-hidden text-slate-100">
-      <NavigationRail />
+      <NavigationRail showMobileNav={!isCallActive} />
       <aside className={`calls-sidebar ${mobilePanel === "list" ? "flex" : "hidden"} h-full min-h-0 w-[320px] shrink-0 flex-col border-r border-slate-700/70 md:flex`}>
         <header className="calls-heading flex h-[68px] shrink-0 items-center justify-between px-5">
           <h1 className="text-[19px] font-semibold text-slate-300">Aramalar</h1>
@@ -526,9 +526,21 @@ function CallsPageContent() {
 }
 
 export default function CallsPage() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <Suspense fallback={<main className="flex h-[100dvh] items-center justify-center bg-[#0f172a] text-sm text-slate-400">Aramalar yükleniyor...</main>}>
-      <CallsPageContent />
+      {mounted ? (
+        <CallsPageContent />
+      ) : (
+        <main className="flex h-[100dvh] items-center justify-center bg-[#0f172a] text-sm text-slate-400">
+          Aramalar yükleniyor...
+        </main>
+      )}
     </Suspense>
   );
 }
