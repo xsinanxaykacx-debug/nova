@@ -35,7 +35,12 @@ on public.call_history
 for each row
 execute function public.guard_call_history_personal_deletion();
 
-grant update (caller_deleted_at, callee_deleted_at)
+-- Replace broad default table-level UPDATE privileges with the exact
+-- columns used by the call lifecycle and participant-specific soft-delete.
+revoke update on table public.call_history from anon, authenticated;
+revoke update (status, ended_at, caller_deleted_at, callee_deleted_at)
+on table public.call_history from anon, authenticated;
+grant update (status, ended_at, caller_deleted_at, callee_deleted_at)
 on table public.call_history to authenticated;
 
 -- Hard deletion bypasses the participant-specific visibility model.
