@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -56,7 +58,7 @@ function VideoSurface({
   className = "",
 }: {
   stream: MediaStream | null;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement>;
   muted?: boolean;
   className?: string;
 }) {
@@ -287,7 +289,7 @@ export default function CallsPage() {
                 <VideoSurface stream={remoteStream} videoRef={remoteVideoRef} className="h-full w-full object-contain" />
               ) : (
                 <>
-                  <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
+                  <VideoSurface stream={remoteStream} videoRef={remoteVideoRef} className="hidden" />
                   <div className="flex flex-col items-center text-center">
                     <div className="flex h-28 w-28 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 text-3xl font-semibold text-cyan-100">{initials(peerName)}</div>
                     <p className="mt-5 text-lg font-medium text-slate-200">{peerName}</p>
@@ -349,7 +351,7 @@ export default function CallsPage() {
                 : filteredProfiles.length ? filteredProfiles.map((profile) => (
                   <div key={profile.id} className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-white/5">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-cyan-400/10 text-sm font-semibold text-cyan-100">
-                      {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials(profile.display_name || profile.username)}
+                      {profile.avatar_url ? <Image src={profile.avatar_url} alt="" width={44} height={44} unoptimized className="h-full w-full object-cover" /> : initials(profile.display_name || profile.username)}
                     </span>
                     <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-100">{profile.display_name || profile.username}</strong><small className="text-xs text-slate-400">@{profile.username}</small></span>
                     <button type="button" disabled={busy} onClick={() => void callUser(profile, "voice")} title="Sesli ara" aria-label={`${profile.display_name} sesli ara`} className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-40"><Phone size={17} /></button>
