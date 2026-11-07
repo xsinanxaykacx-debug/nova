@@ -18,35 +18,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401, headers: NO_STORE_HEADERS });
     }
 
-    const turnKeyId = process.env.CLOUDFLARE_TURN_KEY_ID;
-    const turnApiToken = process.env.CLOUDFLARE_TURN_API_TOKEN;
-    if (!turnKeyId || !turnApiToken) {
-      return NextResponse.json({ error: "Cloudflare TURN is not configured on the server." }, { status: 503, headers: NO_STORE_HEADERS });
+    const hfToken = process.env.HF_TOKEN;
+    if (!hfToken) {
+      return NextResponse.json({ error: "Hugging Face TURN token is not configured on the server." }, { status: 503, headers: NO_STORE_HEADERS });
     }
 
+    // Hugging Face's FastRTC partnership endpoint issues Cloudflare TURN credentials.
+    // The HF token stays server-side; only the short-lived ICE credentials reach the browser.
     const cloudflareResponse = await fetch(
-      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(turnKeyId)}/credentials/generate-ice-servers`,
+      "https://fastrtc-turn-service.hf.space/credentials?ttl=600",
       {
-        method: "POST",
+        method: "GET",
         headers: {
-          Authorization: `Bearer ${turnApiToken}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${hfToken}`,
+          Accept: "application/json",
         },
-        body: JSON.stringify({ ttl: 86400 }),
         cache: "no-store",
         signal: AbortSignal.timeout(10000),
       },
     );
 
     if (!cloudflareResponse.ok) {
-      console.error("[NOVA TURN] Cloudflare credential generation failed:", cloudflareResponse.status);
+      console.error("[NOVA TURN] Hugging Face TURN credential generation failed:", cloudflareResponse.status);
       return NextResponse.json({ error: "TURN credentials could not be generated." }, { status: 502, headers: NO_STORE_HEADERS });
     }
 
     const payload = await cloudflareResponse.json() as { iceServers?: RTCIceServer[] };
     if (!Array.isArray(payload.iceServers) || payload.iceServers.length === 0) {
-      console.error("[NOVA TURN] Cloudflare response did not contain ICE servers.");
-      return NextResponse.json({ error: "Cloudflare returned an invalid TURN configuration." }, { status: 502, headers: NO_STORE_HEADERS });
+      console.error("[NOVA TURN] Hugging Face TURN response did not contain ICE servers.");
+      return NextResponse.json({ error: "Hugging Face returned an invalid TURN configuration." }, { status: 502, headers: NO_STORE_HEADERS });
     }
 
     const iceServers = payload.iceServers
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
         return {
           ...server,
-          urls: urls.filter((url) => typeof url === "string" && !/:53(?:\?|$)/.test(url)),
+          urls: urls.filter((url) => typeof url === "string" && !/:53(?:\\?|$)/.test(url)),
         };
       })
       .filter((server) => Array.isArray(server.urls) && server.urls.length > 0);
