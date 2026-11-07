@@ -31,7 +31,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
-export function useWebRTCCall(userId: string) {
+export function useWebRTCCall(userId: string, incomingSignalId?: string | null) {
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -405,6 +405,33 @@ export function useWebRTCCall(userId: string) {
   }, [resetCall, sendBroadcast, supabase, userId]);
 
   useEffect(() => {
+    if (!userId || !incomingSignalId) return;
+    let active = true;
+    void supabase()
+      .from("call_signals")
+      .select("id, call_id, sender_id, receiver_id, signal_type, payload, created_at")
+      .eq("id", incomingSignalId)
+      .eq("receiver_id", userId)
+      .eq("signal_type", "offer")
+      .maybeSingle()
+      .then(({ data, error: lookupError }) => {
+        if (!active) return;
+        if (lookupError) {
+          setError("Gelen arama alınamadı: " + lookupError.message);
+          return;
+        }
+        if (data && data.sender_id !== userId) {
+          setIncomingCall(data as IncomingCall);
+          setStatus("ringing");
+          const url = new URL(window.location.href);
+          url.searchParams.delete("incoming");
+          window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+        }
+      });
+    return () => { active = false; };
+  }, [incomingSignalId, supabase, userId]);
+
+  useEffect(() => {
     if (!userId) return;
     const channel = supabase().channel(`incoming-calls:${userId}`)
       .on("postgres_changes", {
@@ -419,7 +446,12 @@ export function useWebRTCCall(userId: string) {
           setStatus("ringing");
         }
       })
-      .subscribe();
+      .subscribe((state, subscriptionError) => {
+        if (state === "CHANNEL_ERROR" || state === "TIMED_OUT" || state === "CLOSED") {
+          console.error("Incoming call subscription failed:", state, subscriptionError);
+          setError("Gelen arama kanalına bağlanılamadı. Sayfayı yenileyip tekrar dene.");
+        }
+      });
     incomingChannelRef.current = channel;
     return () => {
       if (incomingChannelRef.current) void supabase().removeChannel(incomingChannelRef.current);

@@ -65,6 +65,29 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+async function captureCompressedPhoto(video: HTMLVideoElement): Promise<Blob> {
+  if (!video.videoWidth || !video.videoHeight) throw new Error("Kamera görüntüsü henüz hazır değil.");
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Fotoğraf görüntüsü hazırlanamadı.");
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
+  let scale = Math.min(1, 1280 / sourceWidth, 1280 / sourceHeight);
+  let quality = 0.82;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) throw new Error("Fotoğraf JPEG biçiminde hazırlanamadı.");
+    if (blob.size <= MAX_MEDIA_BYTES) return blob;
+    if (quality > 0.5) quality = Math.max(0.5, quality - 0.1);
+    else scale *= 0.8;
+  }
+  throw new Error("Fotoğraf 300 KB sınırına sıkıştırılamadı. Kamerayı biraz daha yaklaştırıp tekrar dene.");
+}
+
 function decodeLegacyBase64Message(value: string): string {
   if (!value || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
     throw new Error("Eski mesajın biçimi tanınmıyor; içerik değiştirilmeden korundu.");
@@ -135,6 +158,12 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<Blob | null>(null);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState("");
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -446,9 +475,9 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
   }
 
 
-  async function sendMediaBlob(blob: Blob, type: "audio" | "file", name: string) {
+  async function sendMediaBlob(blob: Blob, type: "audio" | "file" | "image", name: string) {
     if (!blob.size) throw new Error("Gönderilecek medya boş.");
-    if (blob.size > MAX_MEDIA_BYTES) throw new Error("Bu sürümde ses veya dosya boyutu en fazla 300 KB olabilir.");
+    if (blob.size > MAX_MEDIA_BYTES) throw new Error("Bu sürümde ses, fotoğraf veya dosya boyutu en fazla 300 KB olabilir.");
     if (!sharedKey || !cryptoReady || groupKeyRotationRequired) throw new Error("Uçtan uca şifreleme hazır değil veya grup anahtarı yenileniyor.");
     setSending(true);
     setError("");
@@ -470,6 +499,82 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
       if (insertError || !data) throw new Error(insertError?.message ?? "Şifreli medya veritabanına kaydedilemedi.");
       addMessages([data as Message]);
     } finally { setSending(false); }
+  }
+
+  useEffect(() => {
+    const video = cameraVideoRef.current;
+    if (!cameraOpen || !cameraStream || capturedPhoto || !video) return;
+    video.srcObject = cameraStream;
+    void video.play().catch(() => setError("Kamera görüntüsü başlatılamadı."));
+    return () => {
+      if (video.srcObject === cameraStream) video.srcObject = null;
+    };
+  }, [cameraOpen, cameraStream, capturedPhoto]);
+
+  function stopCameraStream() {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraStream(null);
+  }
+
+  function closeCameraModal() {
+    stopCameraStream();
+    if (capturedPhotoUrl) URL.revokeObjectURL(capturedPhotoUrl);
+    setCapturedPhoto(null);
+    setCapturedPhotoUrl("");
+    setCameraOpen(false);
+  }
+
+  async function openCamera() {
+    if (sending || !cryptoReady || groupKeyRotationRequired) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Kamera erişimi için HTTPS bağlantısı ve tarayıcı kamera desteği gerekiyor.");
+      return;
+    }
+    try {
+      setError("");
+      if (capturedPhotoUrl) URL.revokeObjectURL(capturedPhotoUrl);
+      setCapturedPhoto(null);
+      setCapturedPhotoUrl("");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      cameraStreamRef.current = stream;
+      setCameraStream(stream);
+      setCameraOpen(true);
+    } catch (cameraError) {
+      const name = cameraError instanceof DOMException ? cameraError.name : "";
+      setError(name === "NotAllowedError"
+        ? "Kamera izni verilmedi. Tarayıcı site ayarlarından kamera erişimine izin ver."
+        : name === "NotFoundError"
+          ? "Bu cihazda kullanılabilir kamera bulunamadı."
+          : cameraError instanceof Error ? cameraError.message : "Kamera açılamadı.");
+    }
+  }
+
+  async function takeCameraPhoto() {
+    const video = cameraVideoRef.current;
+    if (!video || !cameraStreamRef.current) return;
+    try {
+      const photo = await captureCompressedPhoto(video);
+      setCapturedPhoto(photo);
+      setCapturedPhotoUrl(URL.createObjectURL(photo));
+      stopCameraStream();
+    } catch (captureError) {
+      setError(captureError instanceof Error ? captureError.message : "Fotoğraf çekilemedi.");
+    }
+  }
+
+  async function sendCapturedPhoto() {
+    if (!capturedPhoto || sending) return;
+    try {
+      await sendMediaBlob(capturedPhoto, "image", `kamera-${Date.now()}.jpg`);
+      closeCameraModal();
+    } catch (photoError) {
+      console.error("E2EE camera photo send failed:", photoError);
+      setError(photoError instanceof Error ? photoError.message : "Şifreli fotoğraf gönderilemedi.");
+    }
   }
 
   async function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -537,7 +642,13 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
     }
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
   }, []);
+
+  useEffect(() => () => {
+    if (capturedPhotoUrl) URL.revokeObjectURL(capturedPhotoUrl);
+  }, [capturedPhotoUrl]);
 
   return (
     <main className="chat-app-shell flex h-[100dvh] min-h-[560px] overflow-hidden bg-[#07111f] text-slate-100">
@@ -578,6 +689,8 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
                       <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.55]">{content}</p>
                     ) : mediaPayload ? message.type === "audio" ? (
                       <audio controls preload="metadata" className="max-w-full" src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} />
+                    ) : message.type === "image" ? (
+                      <Image src={`data:${mediaPayload.mimeType};base64,${mediaPayload.data}`} alt="Sohbette paylaşılan fotoğraf" width={1280} height={720} unoptimized className="max-h-[360px] max-w-full rounded-xl object-contain" style={{ width: "auto", height: "auto" }} />
                     ) : (
                       <div className="flex max-w-full items-center gap-3 text-sm">
                         <span className="min-w-0 break-all">{mediaPayload.name}</span>
@@ -607,7 +720,7 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
         {error && <p role="status" className="mx-4 mb-2 rounded-xl border border-rose-900/60 bg-rose-950/50 px-3 py-2 text-xs text-rose-200">{error}</p>}
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} aria-label="Gönderilecek dosyayı seç" />
         <form onSubmit={sendMessage} className="chat-composer flex shrink-0 items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
-          <button type="button" disabled aria-label="Kamera yakında" title="Kamera yakında" className="composer-icon-button composer-send-leading"><Camera size={21} /></button>
+          <button type="button" disabled={!cryptoReady || sending || groupKeyRotationRequired} onClick={() => void openCamera()} aria-label="Kamerayla fotoğraf çek" title="Kamerayla fotoğraf çek" className="composer-icon-button composer-send-leading disabled:cursor-not-allowed disabled:opacity-40"><Camera size={21} /></button>
           <label className="sr-only" htmlFor="chat-message">Mesajın</label>
           <textarea id="chat-message" ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
@@ -618,6 +731,26 @@ export function ChatRoom({ conversationId, currentUserId, peerUserId, conversati
           <button type="button" disabled={!cryptoReady || sending || groupKeyRotationRequired} onClick={() => void toggleRecording()} aria-label={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} title={recording ? "Kaydı bitir ve gönder" : "Ses kaydet"} className="composer-icon-button"><Mic size={21} /></button>
           <button type={draft.trim() ? "submit" : "button"} disabled={draft.trim() ? sending || !cryptoReady || groupKeyRotationRequired : true} aria-label="Mesaj gönder" title="Gönder" className="send-button composer-send-trailing"><Send size={18} /></button>
         </form>
+
+        {cameraOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCameraModal(); }}>
+          <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-700 bg-[#101b2d] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="camera-modal-title">
+            <header className="flex items-center justify-between border-b border-slate-700/70 px-5 py-4">
+              <h2 id="camera-modal-title" className="text-base font-semibold text-white">Sohbete fotoğraf gönder</h2>
+              <button type="button" onClick={closeCameraModal} aria-label="Kamerayı kapat" className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"><X size={19} /></button>
+            </header>
+            <div className="bg-black p-2">
+              {capturedPhotoUrl
+                ? <Image src={capturedPhotoUrl} alt="Çekilen fotoğraf önizlemesi" width={1280} height={720} unoptimized className="mx-auto max-h-[min(60dvh,520px)] w-full rounded-xl object-contain" />
+                : <video ref={cameraVideoRef} autoPlay muted playsInline className="mx-auto max-h-[min(60dvh,520px)] w-full rounded-xl object-contain" />}
+            </div>
+            <footer className="flex flex-wrap justify-end gap-2 px-5 py-4">
+              {capturedPhoto ? <>
+                <button type="button" onClick={() => void openCamera()} disabled={sending} className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50">Tekrar çek</button>
+                <button type="button" onClick={() => void sendCapturedPhoto()} disabled={sending} className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50">{sending ? "Şifreleniyor..." : "Fotoğrafı gönder"}</button>
+              </> : <button type="button" onClick={() => void takeCameraPhoto()} disabled={!cameraStream || sending} className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50">Fotoğrafı çek</button>}
+            </footer>
+          </section>
+        </div>}
 
               {profileOpen && <div className="peer-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
           <section className="peer-profile-modal" role="dialog" aria-modal="true" aria-labelledby="peer-profile-title">

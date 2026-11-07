@@ -81,7 +81,7 @@ export interface Message {
   sender_id: UUID;
   ciphertext: string;
   sender_device_id: UUID;
-  type: "text" | "audio" | "file";
+  type: "text" | "audio" | "file" | "image";
   created_at: ISODateString;
   deleted_at: ISODateString | null;
   group_key_version?: number | null;
