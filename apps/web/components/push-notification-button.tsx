@@ -34,10 +34,7 @@ export function PushNotificationButton({ mobile = false }: PushNotificationButto
   return (
     <button
       type="button"
-      onClick={(event) => {
-        event.preventDefault();
-        void enableNotifications();
-      }}
+      onClick={() => void enableNotifications()}
       disabled={busy || enabled}
       aria-label={label}
       aria-busy={busy}
@@ -47,7 +44,8 @@ export function PushNotificationButton({ mobile = false }: PushNotificationButto
     >
       {busy ? <LoaderCircle size={20} className="animate-spin" /> : enabled ? <BellRing size={20} className="text-sky-400" /> : <Bell size={20} />}
       {mobile && <span>{enabled ? "Açık" : "Bildirim"}</span>}
-      <span className="sr-only" role="status" aria-live="polite">{error || (enabled ? "Bildirimler açıldı" : "")}</span>
+      {error && <span className={`push-notification-feedback ${mobile ? "push-notification-feedback-mobile" : ""}`} role="alert">{error}</span>}
+      <span className="sr-only" role="status" aria-live="polite">{enabled ? "Bildirimler açıldı" : ""}</span>
     </button>
   );
 }

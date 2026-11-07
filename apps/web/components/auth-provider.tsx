@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   createContext,
@@ -104,8 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!firebaseVapidKey) throw new Error("Firebase VAPID key is not configured.");
 
+    if (Notification.permission === "denied") {
+      throw new Error("Tarayıcı bildirim iznini daha önce engellemiş. Adres çubuğundaki site ayarlarından Bildirimler iznini Aç yapıp sayfayı yenile.");
+    }
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") throw new Error("Bildirim izni verilmedi.");
+    if (permission !== "granted") throw new Error("Bildirim izni verilmedi. Tarayıcı izin penceresinde İzin ver seçeneğine bas.");
 
     const messaging = await getFirebaseMessaging();
     if (!messaging) throw new Error("Firebase Messaging bu tarayıcıda desteklenmiyor.");

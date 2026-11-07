@@ -888,3 +888,34 @@ button:disabled { cursor: not-allowed; }
   white-space: nowrap;
 }
 .notification-mobile-link .nav-notification-badge { top: -6px; right: -9px; }
+
+
+/* Push bildirim izni hata geri bildirimi */
+.push-notification-feedback {
+  position: absolute;
+  z-index: 80;
+  top: 50%;
+  left: calc(100% + 10px);
+  width: max-content;
+  max-width: min(320px, 70vw);
+  transform: translateY(-50%);
+  padding: 8px 11px;
+  border: 1px solid #7f3434;
+  border-radius: 8px;
+  background: #291717;
+  color: #ffd7d7;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.push-notification-feedback-mobile {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 10px);
+  left: auto;
+  transform: none;
+  width: min(300px, 85vw);
+}
